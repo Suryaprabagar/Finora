@@ -1,0 +1,48 @@
+"""Async SQLAlchemy database engine and session management."""
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import DeclarativeBase
+from app.core.config import settings
+
+
+connect_args = {}
+engine_args = {
+    "echo": False,
+}
+
+if settings.DATABASE_URL.startswith("postgresql"):
+    engine_args["pool_pre_ping"] = True
+    engine_args["pool_size"] = 10
+    engine_args["max_overflow"] = 20
+elif settings.DATABASE_URL.startswith("sqlite"):
+    # SQLite needs this to allow multiple async requests to the same file
+    connect_args["check_same_thread"] = False
+    engine_args["connect_args"] = connect_args
+
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    **engine_args
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy models."""
+    pass
+
+
+async def get_db():
+    """Dependency that provides a database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

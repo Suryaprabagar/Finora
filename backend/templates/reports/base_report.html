@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ report_title }} | Finora</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      color: #1f1b18;
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #6f4627 0%, #8b5e3c 100%);
+      color: white;
+      padding: 28px 36px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    .brand-name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .brand-tagline {
+      font-size: 10px;
+      opacity: 0.75;
+      margin-top: 1px;
+    }
+    .header-meta {
+      text-align: right;
+    }
+    .report-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .report-subtitle {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+
+    /* Sub-header bar */
+    .subheader {
+      background: #f6ece7;
+      border-bottom: 1px solid #E7E2DB;
+      padding: 10px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #51443c;
+    }
+    .subheader-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .subheader-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: #83746b; margin-bottom: 2px; }
+    .subheader-value { font-weight: 600; color: #1f1b18; font-size: 12px; }
+
+    /* Body content */
+    .content { padding: 24px 36px; }
+
+    /* KPI Cards Row */
+    .kpi-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      flex: 1;
+      background: #fff;
+      border: 1px solid #E7E2DB;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .kpi-label { font-size: 10px; color: #83746b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .kpi-value { font-size: 18px; font-weight: 700; color: #1f1b18; }
+    .kpi-value.positive { color: #265763; }
+    .kpi-value.negative { color: #ba1a1a; }
+
+    /* Section headers */
+    .section-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: #6f4627;
+      border-bottom: 2px solid #E7E2DB;
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+      margin-top: 20px;
+    }
+    .section-header:first-of-type { margin-top: 0; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    thead tr {
+      background: #f6ece7;
+    }
+    thead th {
+      text-align: left;
+      padding: 8px 10px;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #51443c;
+      border-bottom: 1px solid #E7E2DB;
+    }
+    thead th.right, tbody td.right { text-align: right; }
+    tbody tr { border-bottom: 1px solid #f1e6e1; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td { padding: 7px 10px; color: #1f1b18; }
+    tbody tr:nth-child(even) { background: #fcf1ec; }
+
+    /* Amount badges */
+    .amount-income { color: #265763; font-weight: 600; }
+    .amount-expense { color: #ba1a1a; font-weight: 600; }
+    .amount-neutral { color: #6f4627; font-weight: 600; }
+
+    /* Status badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-green { background: #baeaf9; color: #265763; }
+    .badge-red { background: #ffdad6; color: #ba1a1a; }
+    .badge-orange { background: #f5dfc4; color: #6b5c47; }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid #E7E2DB;
+      padding: 14px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #83746b;
+      margin-top: 30px;
+    }
+    .footer-brand { font-weight: 600; color: #6f4627; }
+
+    /* Summary totals row */
+    .totals-row td {
+      background: #f6ece7;
+      font-weight: 700;
+      border-top: 2px solid #E7E2DB;
+    }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid #E7E2DB; margin: 16px 0; }
+
+    @page {
+      margin: 0;
+      size: A4;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-brand">
+      <div class="brand-icon">Fi</div>
+      <div>
+        <div class="brand-name">Finora</div>
+        <div class="brand-tagline">Where your financial future begins.</div>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="report-title">{{ report_title }}</div>
+      <div class="report-subtitle">Generated for {{ user_name }}</div>
+      <div class="report-subtitle">{{ generated_at }}</div>
+    </div>
+  </div>
+
+  <!-- Sub-header -->
+  <div class="subheader">
+    <div class="subheader-item">
+      <span class="subheader-label">Report Type</span>
+      <span class="subheader-value">{{ report_type }}</span>
+    </div>
+    <div class="subheader-item">
+      <span class="subheader-label">Period</span>
+      <span class="subheader-value">{{ period_start }} to {{ period_end }}</span>
+    </div>
+    <div class="subheader-item">
+      <span class="subheader-label">Currency</span>
+      <span class="subheader-value">{{ currency_symbol }} INR</span>
+    </div>
+    <div class="subheader-item">
+      <span class="subheader-label">Total Records</span>
+      <span class="subheader-value">{{ total_records }}</span>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    {% if kpis %}
+    <!-- KPI Summary Cards -->
+    <div class="kpi-row">
+      {% for kpi in kpis %}
+      <div class="kpi-card">
+        <div class="kpi-label">{{ kpi.label }}</div>
+        <div class="kpi-value {{ kpi.class }}">{{ kpi.value }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sections %}
+    {% for section in sections %}
+    <div class="section-header">{{ section.title }}</div>
+
+    {% if section.table_headers %}
+    <table>
+      <thead>
+        <tr>
+          {% for header in section.table_headers %}
+          <th class="{{ 'right' if header.align == 'right' else '' }}">{{ header.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in section.rows %}
+        <tr class="{{ 'totals-row' if row.is_total else '' }}">
+          {% for cell in row.cells %}
+          <td class="{{ 'right' if cell.align == 'right' else '' }} {{ cell.class if cell.class else '' }}">
+            {{ cell.value }}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if section.text %}
+    <p style="font-size:12px; color:#51443c; margin: 8px 0;">{{ section.text }}</p>
+    {% endif %}
+
+    {% endfor %}
+    {% endif %}
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span><span class="footer-brand">Finora</span> &mdash; Personal Financial Management</span>
+    <span>This report is for personal financial tracking purposes only. Not financial advice.</span>
+    <span>Page 1</span>
+  </div>
+
+</body>
+</html>

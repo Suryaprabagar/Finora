@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Geist:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+
+@import "tailwindcss";
+
+@theme {
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Geist', system-ui, sans-serif;
+
+  /* Primary - Rich Brown */
+  --color-primary: #6f4627;
+  --color-primary-container: #8b5e3c;
+  --color-primary-fixed: #ffdcc5;
+  --color-primary-fixed-dim: #f4bb92;
+  --color-on-primary: #ffffff;
+  --color-inverse-primary: #f4bb92;
+
+  /* Secondary - Warm Brown-Gray */
+  --color-secondary: #6b5c47;
+  --color-secondary-container: #f5dfc4;
+  --color-secondary-fixed: #f5dfc4;
+  --color-secondary-fixed-dim: #d8c4a9;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #241a0e;
+
+  /* Tertiary - Teal (income/positive) */
+  --color-tertiary: #265763;
+  --color-tertiary-container: #406f7c;
+  --color-tertiary-fixed: #baeaf9;
+  --color-tertiary-fixed-dim: #9ecedd;
+  --color-on-tertiary: #ffffff;
+
+  /* Background/Surface */
+  --color-background: #fff8f5;
+  --color-surface: #fff8f5;
+  --color-surface-bright: #fff8f5;
+  --color-surface-dim: #e2d8d3;
+  --color-surface-variant: #ebe0db;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #fcf1ec;
+  --color-surface-container: #f6ece7;
+  --color-surface-container-high: #f1e6e1;
+  --color-surface-container-highest: #ebe0db;
+
+  /* Text & Outlines */
+  --color-on-surface: #1f1b18;
+  --color-on-surface-variant: #51443c;
+  --color-on-background: #1f1b18;
+  --color-outline: #83746b;
+  --color-outline-variant: #d5c3b8;
+
+  /* Error */
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+
+  /* Utility */
+  --color-inverse-surface: #352f2c;
+  --color-inverse-on-surface: #f9efe9;
+  --color-surface-tint: #805533;
+
+  /* Borders & Shadows */
+  --color-card-border: #E7E2DB;
+  --color-card-border-hover: #D6C2A8;
+  --shadow-card: 0px 1px 3px rgba(0,0,0,0.02), 0px 4px 12px rgba(139,94,60,0.03);
+  --shadow-card-hover: 0px 4px 16px rgba(139,94,60,0.08);
+}
+
+:root {
+  --primary: #6f4627;
+  --primary-container: #8b5e3c;
+  --secondary: #6b5c47;
+  --secondary-container: #f5dfc4;
+  --tertiary: #265763;
+  --background: #fff8f5;
+  --surface: #ffffff;
+  --on-surface: #1f1b18;
+  --on-surface-variant: #51443c;
+  --outline-variant: #d5c3b8;
+  --error: #ba1a1a;
+  --card-border: #E7E2DB;
+  --card-border-hover: #D6C2A8;
+}
+
+/* ============================================
+   MATERIAL SYMBOLS ICON FONT
+   ============================================ */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  vertical-align: middle;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Filled variant for active state */
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+}
+
+/* ============================================
+   CUSTOM UTILITIES
+   ============================================ */
+@utility finora-card {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-card-border-hover);
+    box-shadow: var(--shadow-card-hover);
+  }
+}
+
+@utility btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: 'Geist', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover {
+    background-color: var(--color-primary-container);
+    box-shadow: 0 4px 12px rgba(111,70,39,0.25);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+@utility btn-secondary {
+  background-color: var(--color-secondary-fixed);
+  color: var(--color-primary);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: 'Geist', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:hover {
+    background-color: var(--color-secondary-fixed-dim);
+  }
+}
+
+@utility chip-cleared {
+  background: color-mix(in srgb, var(--color-tertiary-fixed) 40%, transparent);
+  color: var(--color-tertiary);
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Geist', sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@utility chip-pending {
+  background: color-mix(in srgb, var(--color-secondary-container) 50%, transparent);
+  color: var(--color-on-secondary-container);
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Geist', sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@utility chip-overdue {
+  background: color-mix(in srgb, var(--color-error-container) 50%, transparent);
+  color: var(--color-error);
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Geist', sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@utility trend-up {
+  background: color-mix(in srgb, var(--color-tertiary-fixed) 30%, transparent);
+  color: var(--color-tertiary);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@utility trend-down {
+  background: color-mix(in srgb, var(--color-error-container) 40%, transparent);
+  color: var(--color-error);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@utility custom-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
