@@ -23,10 +23,21 @@ def main():
         shutil.copy(".env.example", ".env")
         print("[OK] Created .env from .env.example. Please update DATABASE_URL.")
 
+    # Determine alembic and uvicorn paths based on environment
+    is_windows = os.name == 'nt'
+    venv_bin = "Scripts" if is_windows else "bin"
+    ext = ".exe" if is_windows else ""
+    
+    alembic_path = os.path.join("venv", venv_bin, "alembic" + ext)
+    alembic_cmd = alembic_path if os.path.exists(alembic_path) else ("alembic" + ext)
+        
+    uvicorn_path = os.path.join("venv", venv_bin, "uvicorn" + ext)
+    uvicorn_cmd = uvicorn_path if os.path.exists(uvicorn_path) else ("uvicorn" + ext)
+
     # Run Alembic migrations
     print("\n[1/3] Running database migrations...")
     result = subprocess.run(
-        ["alembic", "upgrade", "head"],
+        [alembic_cmd, "upgrade", "head"],
         capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -43,7 +54,14 @@ def main():
     print("\n[3/3] Starting FastAPI server on http://localhost:8000")
     print("API Docs: http://localhost:8000/api/docs")
     print("Press Ctrl+C to stop.\n")
-    os.execvp("uvicorn", ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"])
+    if is_windows:
+        # On Windows, execvp isn't fully supported, use subprocess
+        try:
+            subprocess.run([uvicorn_cmd, "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"])
+        except KeyboardInterrupt:
+            print("Stopping server...")
+    else:
+        os.execvp(uvicorn_cmd, [uvicorn_cmd, "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"])
 
 if __name__ == "__main__":
     main()

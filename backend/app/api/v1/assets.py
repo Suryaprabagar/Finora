@@ -48,10 +48,10 @@ async def get_assets_summary(db: AsyncSession = Depends(get_db), current_user: U
         total_value += c_val
         total_purchase += p_val
         
-        if asset.type not in by_type:
-            by_type[asset.type] = {"value": 0, "count": 0}
-        by_type[asset.type]["value"] += c_val
-        by_type[asset.type]["count"] += 1
+        if asset.asset_type not in by_type:
+            by_type[asset.asset_type] = {"value": 0, "count": 0}
+        by_type[asset.asset_type]["value"] += c_val
+        by_type[asset.asset_type]["count"] += 1
         
     total_appreciation = total_value - total_purchase
     

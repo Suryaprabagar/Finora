@@ -71,8 +71,9 @@ async def get_current_budget(db: AsyncSession = Depends(get_db), current_user: U
             Budget.year == today.year,
             Budget.deleted_at.is_(None)
         )
+        .order_by(desc(Budget.created_at))
     )
-    budget = result.scalar_one_or_none()
+    budget = result.scalars().first()
     
     if not budget:
         return APIResponse(data=None)
