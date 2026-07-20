@@ -15,10 +15,10 @@ from app.api.v1 import (
     assets,
     insurance,
     bills,
-    goals,
     reports,
     settings as settings_router,
 )
+from app.modules.goals import router as goals_router
 
 api_router = APIRouter()
 
@@ -36,6 +36,6 @@ api_router.include_router(loans.router, prefix="/loans", tags=["Loans"])
 api_router.include_router(assets.router, prefix="/assets", tags=["Assets"])
 api_router.include_router(insurance.router, prefix="/insurance", tags=["Insurance"])
 api_router.include_router(bills.router, prefix="/bills", tags=["Bills"])
-api_router.include_router(goals.router, prefix="/goals", tags=["Goals"])
+api_router.include_router(goals_router.router, prefix="/goals", tags=["Goals & Planning"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(settings_router.router, prefix="/settings", tags=["Settings"])

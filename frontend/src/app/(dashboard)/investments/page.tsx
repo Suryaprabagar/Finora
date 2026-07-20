@@ -174,14 +174,14 @@ export default function InvestmentsPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!investmentToDelete}
-        onClose={() => setInvestmentToDelete(null)}
+        open={!!investmentToDelete}
+        onCancel={() => setInvestmentToDelete(null)}
         onConfirm={() => deleteMutation.mutate(investmentToDelete?.id)}
         title="Delete Investment"
         description={`Are you sure you want to delete "${investmentToDelete?.name}"? You will lose performance tracking history.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

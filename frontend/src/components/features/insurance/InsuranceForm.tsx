@@ -41,7 +41,7 @@ export function InsuranceForm({ initialData, onSuccess, onCancel }: InsuranceFor
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       policy_name: '',

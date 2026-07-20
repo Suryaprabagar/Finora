@@ -42,7 +42,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',

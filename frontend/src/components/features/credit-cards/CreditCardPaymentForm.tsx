@@ -38,7 +38,7 @@ export function CreditCardPaymentForm({ card, onSuccess, onCancel }: CreditCardP
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       amount: card.outstanding_balance || 0,

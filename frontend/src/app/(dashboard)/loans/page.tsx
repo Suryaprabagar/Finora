@@ -209,14 +209,14 @@ export default function LoansPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!loanToDelete}
-        onClose={() => setLoanToDelete(null)}
+        open={!!loanToDelete}
+        onCancel={() => setLoanToDelete(null)}
         onConfirm={() => deleteMutation.mutate(loanToDelete?.id)}
         title="Delete Loan"
         description={`Are you sure you want to delete "${loanToDelete?.name}"? You will lose history of EMI payments.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

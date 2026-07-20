@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { TransactionForm } from '@/components/features/transactions/TransactionForm'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { downloadCSV } from '@/lib/export'
 
 export default function TransactionsPage() {
   const [page, setPage] = useState(1)
@@ -54,6 +55,15 @@ export default function TransactionsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setTimeout(() => setEditingTxn(null), 200)
+  }
+
+  const handleExport = () => {
+    if (!res?.data || res.data.length === 0) {
+      toast.error('No transactions to export')
+      return
+    }
+    downloadCSV(res.data, 'transactions_export')
+    toast.success('Export downloaded')
   }
 
   const columns: ColumnDef<Transaction>[] = [
@@ -115,12 +125,18 @@ export default function TransactionsPage() {
     <div>
       <PageHeader
         title="Transactions"
-        subtitle="View and manage all your transactions"
+        subtitle="View and manage all your financial transactions."
         actions={
-          <button onClick={handleAdd} className="btn-primary">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Add Transaction
-          </button>
+          <div className="flex gap-3">
+            <button onClick={handleExport} className="px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low rounded-md text-[13px] font-bold text-on-surface flex items-center gap-2 transition-colors">
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              Export
+            </button>
+            <button onClick={handleAdd} className="btn-primary">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Add Transaction
+            </button>
+          </div>
         }
       />
       <div className="finora-card rounded-xl overflow-hidden">
@@ -156,14 +172,14 @@ export default function TransactionsPage() {
       </Dialog>
 
       <ConfirmDialog
-        isOpen={!!txnToDelete}
-        onClose={() => setTxnToDelete(null)}
+        open={!!txnToDelete}
+        onCancel={() => setTxnToDelete(null)}
         onConfirm={() => deleteMutation.mutate(txnToDelete?.id)}
         title="Delete Transaction"
         description={`Are you sure you want to delete this transaction for ${formatCurrency(txnToDelete?.amount || 0)}? This will affect your account balance.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

@@ -31,7 +31,7 @@ export function InsuranceClaimForm({ policy, onSuccess, onCancel }: InsuranceCla
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       claim_date: new Date().toISOString().split('T')[0],

@@ -177,13 +177,13 @@ export default function AssetsPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!assetToDelete}
-        onClose={() => setAssetToDelete(null)}
+        open={!!assetToDelete}
+        onCancel={() => setAssetToDelete(null)}
         onConfirm={() => deleteMutation.mutate(assetToDelete?.id)}
         title="Delete Asset"
-        description={`Are you sure you want to delete ${assetToDelete?.name}? It will be removed from your assets portfolio.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
+        description={`Are you sure you want to delete "${assetToDelete?.name}"? You will lose history of this asset.`}
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
       />
     </div>
   )

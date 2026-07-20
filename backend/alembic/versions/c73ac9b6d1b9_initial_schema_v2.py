@@ -1,8 +1,8 @@
-"""initial_schema
+"""initial_schema_v2
 
-Revision ID: 634e8f63e7c0
+Revision ID: c73ac9b6d1b9
 Revises: None
-Create Date: 2026-07-19 20:19:28.344841
+Create Date: 2026-07-20 07:41:29.737620
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '634e8f63e7c0'
+revision: str = 'c73ac9b6d1b9'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -39,6 +39,25 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_table('asset_allocations',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('objective_type', sa.String(length=50), nullable=False),
+    sa.Column('objective_id', sa.Uuid(), nullable=False),
+    sa.Column('asset_type', sa.String(length=50), nullable=False),
+    sa.Column('asset_id', sa.Uuid(), nullable=False),
+    sa.Column('allocation_type', sa.String(length=20), nullable=False),
+    sa.Column('allocation_value', sa.Numeric(precision=15, scale=2), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_asset_allocations_asset_id'), 'asset_allocations', ['asset_id'], unique=False)
+    op.create_index(op.f('ix_asset_allocations_asset_type'), 'asset_allocations', ['asset_type'], unique=False)
+    op.create_index(op.f('ix_asset_allocations_objective_id'), 'asset_allocations', ['objective_id'], unique=False)
+    op.create_index(op.f('ix_asset_allocations_objective_type'), 'asset_allocations', ['objective_type'], unique=False)
+    op.create_index(op.f('ix_asset_allocations_user_id'), 'asset_allocations', ['user_id'], unique=False)
     op.create_table('assets',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
@@ -134,19 +153,21 @@ def upgrade() -> None:
     op.create_table('goals',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('parent_id', sa.Uuid(), nullable=True),
     sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('category', sa.String(length=50), nullable=False),
+    sa.Column('goal_type', sa.String(length=50), nullable=False),
+    sa.Column('strategy', sa.String(length=50), nullable=False),
+    sa.Column('risk_profile', sa.String(length=50), nullable=False),
+    sa.Column('importance', sa.String(length=20), nullable=False),
+    sa.Column('priority_override', sa.Integer(), nullable=True),
     sa.Column('target_amount', sa.Numeric(precision=15, scale=2), nullable=False),
-    sa.Column('current_amount', sa.Numeric(precision=15, scale=2), nullable=False),
+    sa.Column('target_date', sa.Date(), nullable=True),
     sa.Column('monthly_contribution', sa.Numeric(precision=15, scale=2), nullable=False),
-    sa.Column('deadline', sa.Date(), nullable=True),
-    sa.Column('status', sa.String(length=20), nullable=False),
-    sa.Column('color', sa.String(length=20), nullable=True),
-    sa.Column('icon', sa.String(length=50), nullable=True),
+    sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['parent_id'], ['goals.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -197,6 +218,22 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_investments_type'), 'investments', ['type'], unique=False)
     op.create_index(op.f('ix_investments_user_id'), 'investments', ['user_id'], unique=False)
+    op.create_table('objective_history',
+    sa.Column('id', sa.Uuid(), nullable=False),
+    sa.Column('user_id', sa.Uuid(), nullable=False),
+    sa.Column('objective_type', sa.String(length=50), nullable=False),
+    sa.Column('objective_id', sa.Uuid(), nullable=False),
+    sa.Column('event_type', sa.String(length=50), nullable=False),
+    sa.Column('old_value', sa.String(length=255), nullable=True),
+    sa.Column('new_value', sa.String(length=255), nullable=True),
+    sa.Column('notes', sa.String(length=255), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_objective_history_objective_id'), 'objective_history', ['objective_id'], unique=False)
+    op.create_index(op.f('ix_objective_history_objective_type'), 'objective_history', ['objective_type'], unique=False)
+    op.create_index(op.f('ix_objective_history_user_id'), 'objective_history', ['user_id'], unique=False)
     op.create_table('reports',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
@@ -386,6 +423,10 @@ def downgrade() -> None:
     op.drop_table('bills')
     op.drop_index(op.f('ix_reports_user_id'), table_name='reports')
     op.drop_table('reports')
+    op.drop_index(op.f('ix_objective_history_user_id'), table_name='objective_history')
+    op.drop_index(op.f('ix_objective_history_objective_type'), table_name='objective_history')
+    op.drop_index(op.f('ix_objective_history_objective_id'), table_name='objective_history')
+    op.drop_table('objective_history')
     op.drop_index(op.f('ix_investments_user_id'), table_name='investments')
     op.drop_index(op.f('ix_investments_type'), table_name='investments')
     op.drop_table('investments')
@@ -404,6 +445,12 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_assets_user_id'), table_name='assets')
     op.drop_index(op.f('ix_assets_asset_type'), table_name='assets')
     op.drop_table('assets')
+    op.drop_index(op.f('ix_asset_allocations_user_id'), table_name='asset_allocations')
+    op.drop_index(op.f('ix_asset_allocations_objective_type'), table_name='asset_allocations')
+    op.drop_index(op.f('ix_asset_allocations_objective_id'), table_name='asset_allocations')
+    op.drop_index(op.f('ix_asset_allocations_asset_type'), table_name='asset_allocations')
+    op.drop_index(op.f('ix_asset_allocations_asset_id'), table_name='asset_allocations')
+    op.drop_table('asset_allocations')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
     # ### end Alembic commands ###

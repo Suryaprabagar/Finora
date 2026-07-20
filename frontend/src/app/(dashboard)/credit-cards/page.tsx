@@ -189,14 +189,14 @@ export default function CreditCardsPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!cardToDelete}
-        onClose={() => setCardToDelete(null)}
+        open={!!cardToDelete}
+        onCancel={() => setCardToDelete(null)}
         onConfirm={() => deleteMutation.mutate(cardToDelete?.id)}
         title="Delete Credit Card"
         description={`Are you sure you want to delete ${cardToDelete?.bank_name} - ${cardToDelete?.name}? This action cannot be undone.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

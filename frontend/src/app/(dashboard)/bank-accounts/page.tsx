@@ -130,14 +130,14 @@ export default function BankAccountsPage() {
       </Dialog>
 
       <ConfirmDialog
-        isOpen={!!accountToDelete}
-        onClose={() => setAccountToDelete(null)}
+        open={!!accountToDelete}
+        onCancel={() => setAccountToDelete(null)}
         onConfirm={() => deleteMutation.mutate(accountToDelete?.id)}
         title="Delete Bank Account"
         description={`Are you sure you want to delete ${accountToDelete?.name}? This action cannot be undone.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

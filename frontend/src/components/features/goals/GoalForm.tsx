@@ -12,12 +12,14 @@ import { useEffect } from 'react'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
+  goal_type: z.string().min(1, 'Type is required'),
   target_amount: z.coerce.number().positive('Target amount must be positive'),
-  current_amount: z.coerce.number().min(0, 'Current amount cannot be negative'),
   target_date: z.string().optional(),
-  category: z.string().optional(),
-  color: z.string().default('#0EA5E9'),
-  status: z.enum(['active', 'completed', 'paused']).default('active'),
+  strategy: z.string().default('Savings Only'),
+  risk_profile: z.string().default('Moderate'),
+  importance: z.string().default('Medium'),
+  monthly_contribution: z.coerce.number().min(0).default(0),
+  notes: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -37,16 +39,18 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
+      goal_type: 'House',
       target_amount: 0,
-      current_amount: 0,
       target_date: '',
-      category: 'Savings',
-      color: '#0EA5E9',
-      status: 'active',
+      strategy: 'Savings Only',
+      risk_profile: 'Moderate',
+      importance: 'Medium',
+      monthly_contribution: 0,
+      notes: '',
     },
   })
 
@@ -54,12 +58,14 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
     if (initialData) {
       reset({
         name: initialData.name,
+        goal_type: initialData.goal_type || 'House',
         target_amount: initialData.target_amount,
-        current_amount: initialData.current_amount,
         target_date: initialData.target_date || '',
-        category: initialData.category || 'Savings',
-        color: initialData.color || '#0EA5E9',
-        status: initialData.status || 'active',
+        strategy: initialData.strategy || 'Savings Only',
+        risk_profile: initialData.risk_profile || 'Moderate',
+        importance: initialData.importance || 'Medium',
+        monthly_contribution: initialData.monthly_contribution || 0,
+        notes: initialData.notes || '',
       })
     }
   }, [initialData, reset])
@@ -76,9 +82,9 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] })
-      queryClient.invalidateQueries({ queryKey: ['goals-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['financial-overview'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      toast.success(isEditing ? 'Goal updated' : 'Goal created')
+      toast.success(isEditing ? 'Objective updated' : 'Objective created')
       onSuccess?.()
     },
     onError: (error: any) => {
@@ -92,10 +98,27 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Goal Name *</Label>
-        <Input id="name" placeholder="e.g. Buy a New Car" {...register('name')} />
-        {errors.name && <p className="text-sm text-error">{errors.name.message}</p>}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Objective Name *</Label>
+          <Input id="name" placeholder="e.g. House Downpayment" {...register('name')} />
+          {errors.name && <p className="text-sm text-error">{errors.name.message}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="goal_type">Objective Type</Label>
+          <select 
+            id="goal_type" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('goal_type')}
+          >
+            <option value="House">House</option>
+            <option value="Retirement">Retirement</option>
+            <option value="Education">Education</option>
+            <option value="Emergency Fund">Emergency Fund</option>
+            <option value="Vehicle">Vehicle</option>
+            <option value="General Wealth">General Wealth</option>
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -105,54 +128,60 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
           {errors.target_amount && <p className="text-sm text-error">{errors.target_amount.message}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="current_amount">Starting Savings</Label>
-          <Input id="current_amount" type="number" step="0.01" {...register('current_amount')} disabled={isEditing} />
-          {errors.current_amount && <p className="text-sm text-error">{errors.current_amount.message}</p>}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
           <Label htmlFor="target_date">Target Date</Label>
           <Input id="target_date" type="date" {...register('target_date')} />
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="color">Goal Color Accent</Label>
-          <Input id="color" type="color" {...register('color')} className="h-10 cursor-pointer" />
+          <Label htmlFor="importance">Importance</Label>
+          <select 
+            id="importance" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('importance')}
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="risk_profile">Risk Profile</Label>
+          <select 
+            id="risk_profile" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('risk_profile')}
+          >
+            <option value="Conservative">Conservative</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Aggressive">Aggressive</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="strategy">Strategy</Label>
+          <select 
+            id="strategy" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('strategy')}
+          >
+            <option value="Savings Only">Savings Only</option>
+            <option value="Investments">Investments</option>
+            <option value="Balanced">Balanced</option>
+          </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="category">Category</Label>
-          <select 
-            id="category" 
-            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
-            {...register('category')}
-          >
-            <option value="Savings">Savings</option>
-            <option value="Retirement">Retirement</option>
-            <option value="Investment">Investment</option>
-            <option value="Travel">Travel</option>
-            <option value="Emergency">Emergency Fund</option>
-            <option value="Property">Property</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        {isEditing && (
-          <div className="space-y-2">
-            <Label htmlFor="status">Status</Label>
-            <select 
-              id="status" 
-              className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
-              {...register('status')}
-            >
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-              <option value="paused">Paused</option>
-            </select>
-          </div>
-        )}
+      <div className="space-y-2">
+        <Label htmlFor="monthly_contribution">Direct Monthly Contribution (Optional)</Label>
+        <Input id="monthly_contribution" type="number" step="0.01" {...register('monthly_contribution')} />
+        <p className="text-xs text-on-surface-variant">Amount you plan to contribute manually each month (not linked to assets).</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="notes">Notes</Label>
+        <Input id="notes" placeholder="Any additional details..." {...register('notes')} />
       </div>
 
       <div className="pt-4 flex justify-end gap-3">
@@ -162,7 +191,7 @@ export function GoalForm({ initialData, onSuccess, onCancel }: GoalFormProps) {
           </button>
         )}
         <button type="submit" className="btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Goal'}
+          {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Objective'}
         </button>
       </div>
     </form>

@@ -187,14 +187,14 @@ export default function InsurancePage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!policyToDelete}
-        onClose={() => setPolicyToDelete(null)}
+        open={!!policyToDelete}
+        onCancel={() => setPolicyToDelete(null)}
         onConfirm={() => deleteMutation.mutate(policyToDelete?.id)}
         title="Delete Policy"
         description={`Are you sure you want to delete "${policyToDelete?.policy_name}"? You will lose coverage tracking details.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

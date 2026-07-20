@@ -45,7 +45,7 @@ export const budgetApi = {
 
 export const goalsApi = {
   list: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/goals', { params }),
-  getSummary: () => apiClientModule.get<APIResponse<any>>('/goals/summary'),
+  getOverview: () => apiClientModule.get<APIResponse<any>>('/goals/overview'),
   get: (id: string) => apiClientModule.get<APIResponse<any>>(`/goals/${id}`),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/goals', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/goals/${id}`, data),

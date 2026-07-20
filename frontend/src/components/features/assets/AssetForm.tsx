@@ -40,7 +40,7 @@ export function AssetForm({ initialData, onSuccess, onCancel }: AssetFormProps) 
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',

@@ -9,8 +9,10 @@ import { DonutChart } from '@/components/shared/charts/DonutChart'
 import { formatCurrency, formatCompact, getStatusClass, formatDate } from '@/lib/utils'
 import { EmptyState } from '@/components/shared/EmptyState'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { data: res, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => dashboardApi.get().then(r => r.data),
@@ -23,12 +25,6 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Here's an overview of your financial status"
-        actions={
-          <Link href="/transactions" className="btn-primary">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            New Transaction
-          </Link>
-        }
       />
 
       {/* Stats Grid */}
@@ -132,7 +128,7 @@ export default function DashboardPage() {
           ) : dashboardData?.recent_transactions && dashboardData.recent_transactions.length > 0 ? (
             <div className="divide-y divide-outline-variant">
               {dashboardData.recent_transactions.slice(0, 5).map((t) => (
-                <div key={t.id} className="py-3 flex items-center justify-between hover:bg-surface-variant/20 transition-colors -mx-2 px-2 rounded-lg">
+                <div key={t.id} onClick={() => router.push('/transactions')} className="py-3 flex items-center justify-between hover:bg-surface-variant/20 transition-colors -mx-2 px-2 rounded-lg cursor-pointer">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 text-on-surface-variant">
                       <span className="material-symbols-outlined text-[20px]">
@@ -154,7 +150,11 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyState title="No recent transactions" icon="receipt_long" />
+            <EmptyState 
+              title="No recent transactions" 
+              icon="receipt_long" 
+              action={{ label: "Go to Transactions", onClick: () => router.push('/transactions') }}
+            />
           )}
         </div>
 
@@ -175,7 +175,7 @@ export default function DashboardPage() {
           ) : dashboardData?.upcoming_bills && dashboardData.upcoming_bills.length > 0 ? (
              <div className="space-y-3">
               {dashboardData.upcoming_bills.slice(0, 4).map((b) => (
-                <div key={b.id} className="p-3 border border-outline-variant rounded-lg flex justify-between items-center bg-surface-container-lowest">
+                <div key={b.id} onClick={() => router.push('/bills')} className="p-3 border border-outline-variant rounded-lg flex justify-between items-center bg-surface-container-lowest hover:border-primary transition-colors cursor-pointer">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-error-container/30 text-error flex items-center justify-center">
                       <span className="material-symbols-outlined text-[20px]">{b.icon || 'receipt'}</span>
@@ -190,7 +190,11 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <EmptyState title="No upcoming bills" icon="event" />
+            <EmptyState 
+              title="No upcoming bills" 
+              icon="event" 
+              action={{ label: "Manage Bills", onClick: () => router.push('/bills') }}
+            />
           )}
         </div>
       </div>

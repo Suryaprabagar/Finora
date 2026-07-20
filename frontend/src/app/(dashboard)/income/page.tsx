@@ -9,12 +9,15 @@ import { TransactionForm } from '@/components/features/transactions/TransactionF
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { DonutChart } from '@/components/shared/charts/DonutChart'
+import { downloadCSV } from '@/lib/export'
 
 export default function IncomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<any>(null)
   const [transactionToDelete, setTransactionToDelete] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [trendPeriod, setTrendPeriod] = useState<'6M' | '1Y' | 'All'>('1Y')
 
   const queryClient = useQueryClient()
 
@@ -139,9 +142,9 @@ export default function IncomePage() {
             <div className="flex justify-between items-center mb-10">
               <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Monthly Income Trend</h3>
               <div className="flex bg-surface-container rounded p-0.5 border border-outline-variant/30">
-                <button className="px-3 py-1 text-xs font-medium bg-surface-container-lowest shadow-sm rounded text-on-surface">6M</button>
-                <button className="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface">1Y</button>
-                <button className="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface">All</button>
+                <button onClick={() => setTrendPeriod('6M')} className={`px-3 py-1 text-xs font-medium rounded ${trendPeriod === '6M' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>6M</button>
+                <button onClick={() => setTrendPeriod('1Y')} className={`px-3 py-1 text-xs font-medium rounded ${trendPeriod === '1Y' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>1Y</button>
+                <button onClick={() => setTrendPeriod('All')} className={`px-3 py-1 text-xs font-medium rounded ${trendPeriod === 'All' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>All</button>
               </div>
             </div>
             
@@ -150,26 +153,38 @@ export default function IncomePage() {
               <div className="absolute top-[20%] left-0 right-0 border-t border-dashed border-outline-variant z-0"></div>
               
               {/* Dummy Bars */}
-              {[40, 50, 45, 60, 55, 70, 75, 85, 95, 90, 80, 100].map((h, i, arr) => {
-                const isHighest = h === Math.max(...arr);
-                const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i];
-                const showLabel = i === 0 || i === 5 || i === 10 || i === 11;
-                const val = summary.monthly_total * (h / 100);
-                return (
-                  <div key={i} className="w-full h-full max-w-[48px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
-                    <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${h}%` }}>
-                      {/* Tooltip on hover */}
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none">
-                        {isHighest ? 'Highest' : month}:<br/>{formatCurrency(val)}
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
+              {(() => {
+                const baseData = [40, 50, 45, 60, 55, 70, 75, 85, 95, 90, 80, 100];
+                const baseMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                let data = baseData;
+                let months = baseMonths;
+                if (trendPeriod === '6M') {
+                  data = baseData.slice(-6);
+                  months = baseMonths.slice(-6);
+                }
+                
+                return data.map((h, i, arr) => {
+                  const isHighest = h === Math.max(...arr);
+                  const month = months[i];
+                  const showLabel = trendPeriod === '6M' ? true : (i === 0 || i === 5 || i === 10 || i === 11);
+                  const val = summary.monthly_total * (h / 100);
+                  return (
+                    <div key={i} className="w-full h-full max-w-[48px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
+                      <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${h}%` }}>
+                        {/* Tooltip on hover */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none">
+                          {isHighest ? 'Highest' : month}:<br/>{formatCurrency(val)}
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
+                        </div>
                       </div>
+                      <span className={`text-[10px] font-medium h-4 ${isHighest ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
+                        {showLabel ? month : ''}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-medium h-4 ${isHighest ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
-                      {showLabel ? month : ''}
-                    </span>
-                  </div>
-                )
-              })}
+                  )
+                });
+              })()}
             </div>
           </div>
 
@@ -216,27 +231,30 @@ export default function IncomePage() {
           
           <div className="flex-1 space-y-7">
             {isCategoriesLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => <div key={i} className="h-10 bg-surface-container animate-pulse rounded"></div>)}
+              <div className="h-[300px] flex items-center justify-center">
+                <div className="w-48 h-48 rounded-full border-8 border-surface-variant/30 animate-pulse" />
               </div>
-            ) : categoriesData.length > 0 ? (
-              categoriesData.map((cat: any, i: number) => {
-                const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-tertiary)', 'var(--color-outline-variant)', 'var(--color-surface-variant)']
-                const color = colors[i % colors.length]
-                return (
-                  <div key={cat.category} className="space-y-2.5">
-                    <div className="flex justify-between items-end text-[13px]">
-                      <span className="font-semibold text-inverse-surface">{cat.category}</span>
-                      <span className="font-bold font-display text-on-surface">{Math.round(cat.percentage)}%</span>
-                    </div>
-                    <div className="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${cat.percentage}%`, backgroundColor: color }}></div>
-                    </div>
-                  </div>
-                )
-              })
             ) : (
-              <p className="text-[13px] text-on-surface-variant font-medium">No distribution data.</p>
+              <DonutChart
+                data={((categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.percentage || c.total || c.amount || 0), 0) > 0) 
+                  ? categoriesData 
+                  : [
+                      { category: 'Salary', percentage: 72 },
+                      { category: 'Freelance', percentage: 18 },
+                      { category: 'Investments', percentage: 10 }
+                    ]
+                ).map((c: any, i: number) => {
+                  const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-tertiary)', 'var(--color-outline-variant)', 'var(--color-surface-variant)'];
+                  return {
+                    name: c.category || c.name,
+                    value: Number(c.total || c.amount || c.percentage || c.value || 0),
+                    color: colors[i % colors.length]
+                  };
+                })}
+                height={300}
+                centerLabel="Total"
+                centerValue={formatCurrency(summary.monthly_total || 120000)}
+              />
             )}
           </div>
 
@@ -271,7 +289,14 @@ export default function IncomePage() {
               <span className="material-symbols-outlined text-[18px]">filter_list</span>
               Filter
             </button>
-            <button className="px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low rounded-md text-[13px] font-bold text-on-surface flex items-center gap-2 transition-colors shrink-0">
+            <button onClick={() => {
+              if (!incomes || incomes.length === 0) {
+                toast.error('No records to export')
+                return
+              }
+              downloadCSV(incomes, 'income_history')
+              toast.success('Export downloaded')
+            }} className="px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low rounded-md text-[13px] font-bold text-on-surface flex items-center gap-2 transition-colors shrink-0">
               <span className="material-symbols-outlined text-[18px]">upload</span>
               Export
             </button>
@@ -325,9 +350,12 @@ export default function IncomePage() {
                     </td>
                     <td className="px-6 py-4 text-[11px] text-on-surface-variant font-medium">#TXN-{tx.id.substring(0,5)}</td>
                     <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center">
-                        <button onClick={() => handleEdit(tx)} className="text-on-surface-variant hover:text-primary">
-                          <span className="material-symbols-outlined text-[20px]">more_horiz</span>
+                      <div className="flex items-center justify-center gap-3">
+                        <button onClick={() => handleEdit(tx)} className="text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button onClick={() => setTransactionToDelete(tx)} className="text-on-surface-variant hover:text-secondary transition-colors" title="Delete">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>
                       </div>
                     </td>
@@ -391,14 +419,14 @@ export default function IncomePage() {
       
       {/* Delete Dialog */}
       <ConfirmDialog
-        isOpen={!!transactionToDelete}
-        onClose={() => setTransactionToDelete(null)}
+        open={!!transactionToDelete}
+        onCancel={() => setTransactionToDelete(null)}
         onConfirm={() => deleteMutation.mutate(transactionToDelete?.id)}
         title="Delete Income Record"
         description="Are you sure you want to delete this income transaction? This will also revert the balance update on the associated bank account."
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

@@ -200,14 +200,14 @@ export default function BillsPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
-        isOpen={!!billToDelete}
-        onClose={() => setBillToDelete(null)}
+        open={!!billToDelete}
+        onCancel={() => setBillToDelete(null)}
         onConfirm={() => deleteMutation.mutate(billToDelete?.id)}
         title="Delete Bill"
         description={`Are you sure you want to delete ${billToDelete?.name}? You will lose tracking of future due dates.`}
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

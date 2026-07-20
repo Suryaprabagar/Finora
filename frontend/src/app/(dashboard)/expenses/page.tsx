@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { expensesApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DonutChart } from '@/components/shared/charts/DonutChart'
+import { downloadCSV } from '@/lib/export'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { TransactionForm } from '@/components/features/transactions/TransactionForm'
@@ -16,6 +17,8 @@ export default function ExpensesPage() {
   const [editingTransaction, setEditingTransaction] = useState<any>(null)
   const [transactionToDelete, setTransactionToDelete] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [velocityPeriod, setVelocityPeriod] = useState<'Daily' | 'Weekly'>('Daily')
+  const [monthFilter, setMonthFilter] = useState<'Sep' | 'Oct'>('Sep')
 
   const queryClient = useQueryClient()
 
@@ -83,10 +86,30 @@ export default function ExpensesPage() {
         subtitle="Track and manage your spending across all categories."
         actions={
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-md text-sm font-medium text-on-surface">
-              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-              Sept 1 - Sept 30, 2023
+            <div className="flex gap-2">
+              <button className="px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low rounded-md text-[13px] font-bold text-on-surface flex items-center gap-2 transition-colors shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                Filter
+              </button>
+              <button onClick={() => {
+                if (!expenses || expenses.length === 0) {
+                  toast.error('No records to export')
+                  return
+                }
+                downloadCSV(expenses, 'expenses_history')
+                toast.success('Export downloaded')
+              }} className="px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low rounded-md text-[13px] font-bold text-on-surface flex items-center gap-2 transition-colors shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                Export CSV
+              </button>
             </div>
+            <button 
+              onClick={() => setMonthFilter(monthFilter === 'Sep' ? 'Oct' : 'Sep')}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low transition-colors cursor-pointer rounded-md text-sm font-medium text-on-surface"
+            >
+              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
+              {monthFilter === 'Sep' ? 'Sept 1 - Sept 30, 2023' : 'Oct 1 - Oct 31, 2023'}
+            </button>
             <button onClick={handleAdd} className="btn-primary">
               <span className="material-symbols-outlined text-[18px]">add</span>
               Add Expense
@@ -139,49 +162,72 @@ export default function ExpensesPage() {
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Spending Velocity</h3>
             <div className="flex bg-surface-container rounded p-0.5 border border-outline-variant/30">
-              <button className="px-3 py-1 text-xs font-medium bg-surface-container-lowest shadow-sm rounded text-on-surface">Daily</button>
-              <button className="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface">Weekly</button>
+              <button onClick={() => setVelocityPeriod('Daily')} className={`px-3 py-1 text-xs font-medium rounded ${velocityPeriod === 'Daily' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>Daily</button>
+              <button onClick={() => setVelocityPeriod('Weekly')} className={`px-3 py-1 text-xs font-medium rounded ${velocityPeriod === 'Weekly' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>Weekly</button>
             </div>
           </div>
           <div className="h-[200px] flex items-end justify-between gap-1 sm:gap-2 px-1 relative">
             <div className="absolute top-[30%] left-0 right-0 border-t border-dashed border-outline-variant z-0"></div>
-            {[50, 40, 60, 45, 90, 30, 55, 45, 30, 65, 55, 80].map((h, i, arr) => {
-              const isHighest = h === Math.max(...arr);
-              const dateStr = `Sep ${i < 9 ? '0' + (Math.floor(i * 2.5) + 1) : Math.floor(i * 2.5) + 1}`;
-              const val = summary.monthly_total * (h / 100) * 0.1;
-              const showLabel = i === 0 || i === 5 || i === 11;
-              return (
-                <div key={i} className="w-full h-full max-w-[32px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
-                  <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${h}%` }}>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none z-30">
-                      {isHighest ? 'Peak' : dateStr}:<br/>{formatCurrency(val)}
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
+            {(() => {
+              const baseData = [50, 40, 60, 45, 90, 30, 55, 45, 30, 65, 55, 80];
+              const weeklyData = [150, 165, 120, 200];
+              const data = velocityPeriod === 'Daily' ? baseData : weeklyData;
+              
+              return data.map((h, i, arr) => {
+                const isHighest = h === Math.max(...arr);
+                let dateStr = '';
+                if (velocityPeriod === 'Daily') {
+                  dateStr = `${monthFilter.substring(0,3)} ${i < 9 ? '0' + (Math.floor(i * 2.5) + 1) : Math.floor(i * 2.5) + 1}`;
+                } else {
+                  dateStr = `Week ${i + 1}`;
+                }
+                const val = summary.monthly_total * (h / 100) * (velocityPeriod === 'Daily' ? 0.1 : 0.25);
+                const showLabel = velocityPeriod === 'Weekly' ? true : (i === 0 || i === 5 || i === 11);
+                
+                return (
+                  <div key={i} className={`w-full h-full flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer ${velocityPeriod === 'Daily' ? 'max-w-[32px]' : 'max-w-[64px]'}`}>
+                    <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${velocityPeriod === 'Daily' ? h : h/2}%` }}>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none z-30">
+                        {isHighest ? 'Peak' : dateStr}:<br/>{formatCurrency(val)}
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
+                      </div>
                     </div>
+                    <span className={`text-[10px] font-medium h-4 ${isHighest ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
+                      {showLabel ? dateStr : ''}
+                    </span>
                   </div>
-                  <span className={`text-[10px] font-medium h-4 ${isHighest ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
-                    {showLabel ? dateStr : ''}
-                  </span>
-                </div>
-              )
-            })}
+                )
+              });
+            })()}
           </div>
         </div>
 
         <div className="finora-card p-6 flex flex-col">
           <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-4">Allocation by Category</h3>
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1">
             {isCategoriesLoading ? (
-              <div className="w-full h-full animate-pulse bg-surface-container rounded-full"></div>
-            ) : categoriesData.length > 0 ? (
-              <div className="w-full h-[220px]">
-                <DonutChart
-                  data={categoriesData}
-                  centerLabel="Total"
-                  centerValue={formatCurrency(summary.monthly_total)}
-                />
+              <div className="h-[300px] flex items-center justify-center">
+                <div className="w-48 h-48 rounded-full border-8 border-surface-variant/30 animate-pulse" />
               </div>
             ) : (
-              <p className="text-[13px] text-on-surface-variant font-medium">No distribution data.</p>
+              <DonutChart
+                data={(categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.total || c.amount || c.value || 0), 0) > 0) ? categoriesData.map((c: any, i: number) => {
+                  const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-tertiary)', 'var(--color-outline-variant)', 'var(--color-surface-variant)'];
+                  return {
+                    name: c.category || c.name,
+                    value: Number(c.total || c.amount || c.value || 0),
+                    color: colors[i % colors.length]
+                  };
+                }) : [
+                  { name: 'Housing & Utilities', value: 2800, color: 'var(--color-primary)' },
+                  { name: 'Food & Dining', value: 1200, color: 'var(--color-secondary)' },
+                  { name: 'Transportation', value: 450, color: 'var(--color-tertiary)' },
+                  { name: 'Entertainment', value: 300, color: 'var(--color-outline-variant)' },
+                ]}
+                height={300}
+                centerLabel="Total"
+                centerValue={formatCurrency(summary.monthly_total || 4750)}
+              />
             )}
           </div>
         </div>
@@ -326,9 +372,14 @@ export default function ExpensesPage() {
                       )}
                     </td>
                     <td className="px-6 py-3 text-center">
-                      <button onClick={() => handleEdit(tx)} className="text-on-surface-variant hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="material-symbols-outlined text-[20px]">more_horiz</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEdit(tx)} className="text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                        </button>
+                        <button onClick={() => setTransactionToDelete(tx)} className="text-on-surface-variant hover:text-secondary transition-colors" title="Delete">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -446,14 +497,14 @@ export default function ExpensesPage() {
       
       {/* Delete Dialog */}
       <ConfirmDialog
-        isOpen={!!transactionToDelete}
-        onClose={() => setTransactionToDelete(null)}
+        open={!!transactionToDelete}
+        onCancel={() => setTransactionToDelete(null)}
         onConfirm={() => deleteMutation.mutate(transactionToDelete?.id)}
         title="Delete Expense Record"
         description="Are you sure you want to delete this expense transaction? This will also revert the balance deduction on the associated bank account."
-        confirmText={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-        isDestructive
-      />
+        confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+        variant="danger"
+            />
     </div>
   )
 }

@@ -36,7 +36,7 @@ export function BankAccountForm({ initialData, onSuccess, onCancel }: BankAccoun
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',

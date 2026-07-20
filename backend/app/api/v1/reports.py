@@ -22,9 +22,25 @@ async def generate_report(data: ReportGenerateRequest, db: AsyncSession = Depend
     file_name = f"{data.report_type}_{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{data.format}"
     file_path = os.path.join(REPORTS_DIR, file_name)
     
+    from app.core.planning.planning_service import PlanningService
+    
     # Dummy report generation since we don't have weasyprint/openpyxl installed reliably here
     with open(file_path, "w") as f:
-        f.write(f"Finora Report: {data.name}\nType: {data.report_type}\nPeriod: {data.period_start} to {data.period_end}")
+        f.write(f"Finora Report: {data.name}\nType: {data.report_type}\nPeriod: {data.period_start} to {data.period_end}\n\n")
+        
+        if data.report_type == "goals" or data.report_type == "planning":
+            overview = await PlanningService.get_user_planning_overview(db, current_user.id)
+            f.write(f"--- Financial Planning Summary ---\n")
+            f.write(f"Total Managed Target: {overview['overview']['total_target']}\n")
+            f.write(f"Current Funding: {overview['overview']['total_funding']}\n")
+            f.write(f"Overall Progress: {overview['overview']['overall_progress']}%\n")
+            f.write(f"Total Objectives: {overview['overview']['total_objectives']}\n")
+            for obj in overview['objectives']:
+                f.write(f"\nObjective: {obj['name']}\n")
+                f.write(f"  Target: {obj['target_amount']}\n")
+                f.write(f"  Funding: {obj['current_funding']}\n")
+                f.write(f"  Health: {obj['health']}\n")
+                f.write(f"  Priority Score: {obj['priority_score']}\n")
         
     report = Report(
         user_id=current_user.id,

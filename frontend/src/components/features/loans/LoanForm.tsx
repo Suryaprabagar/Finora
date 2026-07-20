@@ -50,7 +50,7 @@ export function LoanForm({ initialData, onSuccess, onCancel }: LoanFormProps) {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',

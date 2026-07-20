@@ -42,6 +42,10 @@ export function DonutChart({
               paddingAngle={2}
               dataKey="value"
               stroke="none"
+              isAnimationActive={true}
+              animationBegin={0}
+              animationDuration={1000}
+              animationEasing="ease-out"
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />

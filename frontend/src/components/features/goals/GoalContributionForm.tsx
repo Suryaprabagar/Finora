@@ -30,7 +30,7 @@ export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContribu
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       amount: 0,

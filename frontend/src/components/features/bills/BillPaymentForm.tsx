@@ -37,7 +37,7 @@ export function BillPaymentForm({ bill, onSuccess, onCancel }: BillPaymentFormPr
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       amount_paid: bill.amount || 0,

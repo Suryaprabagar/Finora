@@ -33,7 +33,7 @@ interface TransactionFormProps {
 
 export function TransactionForm({ initialData, onSuccess, onCancel }: TransactionFormProps) {
   const queryClient = useQueryClient()
-  const isEditing = !!initialData
+  const isEditing = !!initialData?.id
 
   const { data: bankAccountsRes } = useQuery({
     queryKey: ['bank-accounts'],
@@ -55,7 +55,7 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
     watch,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       type: 'expense',
@@ -105,6 +105,12 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['income-list'] })
+      queryClient.invalidateQueries({ queryKey: ['income-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['income-by-category'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-list'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-by-category'] })
       toast.success(isEditing ? 'Transaction updated' : 'Transaction created')
       onSuccess?.()
     },

@@ -51,7 +51,7 @@ export function BudgetForm({ initialData, onSuccess, onCancel }: BudgetFormProps
     watch,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: `Budget ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`,

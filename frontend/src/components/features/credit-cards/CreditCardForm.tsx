@@ -40,7 +40,7 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',

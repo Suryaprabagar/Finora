@@ -29,7 +29,7 @@ export function LoanPaymentForm({ loan, onSuccess, onCancel }: LoanPaymentFormPr
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<FormData>({
+  } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
       payment_date: new Date().toISOString().split('T')[0],
