@@ -3,14 +3,16 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { loansApi } from '@/lib/api'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { loansApi, bankAccountsApi } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 const schema = z.object({
   payment_date: z.string().min(1, 'Payment date is required'),
+  amount_paid: z.coerce.number().positive('Amount must be positive').optional(),
+  bank_account_id: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -24,6 +26,12 @@ interface LoanPaymentFormProps {
 
 export function LoanPaymentForm({ loan, onSuccess, onCancel }: LoanPaymentFormProps) {
   const queryClient = useQueryClient()
+  
+  const { data: bankAccountsRes } = useQuery({
+    queryKey: ['bank-accounts'],
+    queryFn: () => bankAccountsApi.list().then(r => r.data),
+  })
+  const accounts = bankAccountsRes?.data || []
 
   const {
     register,
@@ -33,6 +41,8 @@ export function LoanPaymentForm({ loan, onSuccess, onCancel }: LoanPaymentFormPr
     resolver: zodResolver(schema),
     defaultValues: {
       payment_date: new Date().toISOString().split('T')[0],
+      amount_paid: loan.emi_amount || 0,
+      bank_account_id: '',
       notes: `EMI Payment for ${loan.name}`,
     },
   })
@@ -42,6 +52,7 @@ export function LoanPaymentForm({ loan, onSuccess, onCancel }: LoanPaymentFormPr
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loans'] })
       queryClient.invalidateQueries({ queryKey: ['loans-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('EMI Payment recorded successfully')
       onSuccess?.()
@@ -64,9 +75,31 @@ export function LoanPaymentForm({ loan, onSuccess, onCancel }: LoanPaymentFormPr
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="payment_date">Payment Date *</Label>
-        <Input id="payment_date" type="date" {...register('payment_date')} />
-        {errors.payment_date && <p className="text-sm text-error">{errors.payment_date.message}</p>}
+        <Label htmlFor="bank_account_id">Pay From Account</Label>
+        <select 
+          id="bank_account_id" 
+          className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+          {...register('bank_account_id')}
+        >
+          <option value="">None (Just Record Payment)</option>
+          {accounts.map((acc: any) => (
+            <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance})</option>
+          ))}
+        </select>
+        {errors.bank_account_id && <p className="text-sm text-error">{errors.bank_account_id.message as string}</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="amount_paid">Amount Paid *</Label>
+          <Input id="amount_paid" type="number" step="0.01" {...register('amount_paid')} />
+          {errors.amount_paid && <p className="text-sm text-error">{errors.amount_paid.message as string}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="payment_date">Payment Date *</Label>
+          <Input id="payment_date" type="date" {...register('payment_date')} />
+          {errors.payment_date && <p className="text-sm text-error">{errors.payment_date.message as string}</p>}
+        </div>
       </div>
 
       <div className="space-y-2">

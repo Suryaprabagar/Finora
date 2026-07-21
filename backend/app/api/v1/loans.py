@@ -152,6 +152,10 @@ async def delete_loan(id: uuid.UUID, db: AsyncSession = Depends(get_db), current
 
 @router.post("/{id}/payment")
 async def record_payment(id: uuid.UUID, data: LoanPaymentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.transaction import Transaction
+    from app.models.bank_account import BankAccount
+    from app.models.category import Category
+
     result = await db.execute(
         select(Loan).where(Loan.id == id, Loan.user_id == current_user.id, Loan.deleted_at.is_(None))
     )
@@ -161,7 +165,9 @@ async def record_payment(id: uuid.UUID, data: LoanPaymentCreate, db: AsyncSessio
         
     monthly_rate = float(loan.interest_rate) / 100 / 12
     interest_component = float(loan.outstanding_balance) * monthly_rate
-    principal_component = float(loan.emi_amount) - interest_component
+    
+    amount_paid = data.amount_paid if data.amount_paid is not None else loan.emi_amount
+    principal_component = float(amount_paid) - interest_component
     
     payment = LoanPayment(
         loan_id=loan.id,
@@ -172,6 +178,31 @@ async def record_payment(id: uuid.UUID, data: LoanPaymentCreate, db: AsyncSessio
     )
     db.add(payment)
     
+    # Double-entry logic
+    if data.bank_account_id:
+        bank_result = await db.execute(
+            select(BankAccount).where(BankAccount.id == data.bank_account_id, BankAccount.user_id == current_user.id)
+        )
+        bank_account = bank_result.scalar_one_or_none()
+        if bank_account:
+            bank_account.balance -= amount_paid
+            
+            cat_result = await db.execute(select(Category).where(Category.user_id == current_user.id, Category.type == 'expense'))
+            category = cat_result.scalars().first()
+            
+            transaction = Transaction(
+                user_id=current_user.id,
+                amount=amount_paid,
+                type="expense",
+                category_id=category.id if category else None,
+                date=data.payment_date,
+                description=f"Loan Payment: {loan.name}",
+                payment_method="bank_transfer",
+                bank_account_id=bank_account.id,
+                status="completed"
+            )
+            db.add(transaction)
+            
     loan.outstanding_balance -= Decimal(principal_component)
     loan.paid_months += 1
     

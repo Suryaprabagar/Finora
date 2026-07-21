@@ -9,6 +9,7 @@ from app.schemas.common import APIResponse
 from app.schemas.investment import InvestmentCreate, InvestmentUpdate, InvestmentResponse
 import uuid
 from datetime import datetime, timezone
+from app.services.market_service import fetch_eod_prices
 
 router = APIRouter()
 
@@ -132,3 +133,30 @@ async def delete_investment(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
     inv.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     return APIResponse(message="Investment deleted")
+@router.post("/sync")
+async def sync_investment_prices(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(
+        select(Investment)
+        .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
+    )
+    investments = result.scalars().all()
+    
+    # Collect unique symbols
+    symbols = list(set([inv.symbol for inv in investments if inv.symbol]))
+    
+    if not symbols:
+        return APIResponse(message="No valid symbols found to sync.")
+        
+    prices = await fetch_eod_prices(symbols)
+    updated_count = 0
+    
+    for inv in investments:
+        if inv.symbol and inv.symbol in prices:
+            inv.current_price = prices[inv.symbol]
+            updated_count += 1
+            
+    if updated_count > 0:
+        await db.commit()
+        
+    return APIResponse(message=f"Synced {updated_count} investments with EOD market data.")
+

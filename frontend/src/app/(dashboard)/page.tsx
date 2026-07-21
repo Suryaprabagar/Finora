@@ -35,6 +35,7 @@ export default function DashboardPage() {
           loading={isLoading}
           icon="account_balance_wallet"
           iconBg="bg-primary-fixed"
+          href="/assets"
         />
         <StatCard
           title="Cash Balance"
@@ -42,6 +43,7 @@ export default function DashboardPage() {
           loading={isLoading}
           icon="payments"
           iconBg="bg-secondary-fixed"
+          href="/bank-accounts"
         />
         <StatCard
           title="Monthly Income"
@@ -49,6 +51,7 @@ export default function DashboardPage() {
           loading={isLoading}
           icon="trending_up"
           iconBg="bg-tertiary-fixed"
+          href="/transactions"
         />
         <StatCard
           title="Monthly Expenses"
@@ -56,6 +59,7 @@ export default function DashboardPage() {
           loading={isLoading}
           icon="trending_down"
           iconBg="bg-error-container"
+          href="/transactions"
         />
       </div>
 

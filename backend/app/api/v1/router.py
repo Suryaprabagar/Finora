@@ -17,6 +17,7 @@ from app.api.v1 import (
     bills,
     reports,
     settings as settings_router,
+    analytics,
 )
 from app.modules.goals import router as goals_router
 
@@ -39,3 +40,4 @@ api_router.include_router(bills.router, prefix="/bills", tags=["Bills"])
 api_router.include_router(goals_router.router, prefix="/goals", tags=["Goals & Planning"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(settings_router.router, prefix="/settings", tags=["Settings"])
+api_router.include_router(analytics.router, tags=["Analytics"])

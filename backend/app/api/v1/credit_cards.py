@@ -85,6 +85,8 @@ async def delete_credit_card(id: uuid.UUID, db: AsyncSession = Depends(get_db), 
 
 @router.post("/{id}/payment")
 async def credit_card_payment(id: uuid.UUID, data: CreditCardPaymentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.bank_account import BankAccount
+    
     result = await db.execute(
         select(CreditCard).where(CreditCard.id == id, CreditCard.user_id == current_user.id, CreditCard.deleted_at.is_(None))
     )
@@ -94,14 +96,34 @@ async def credit_card_payment(id: uuid.UUID, data: CreditCardPaymentCreate, db: 
         
     card.outstanding_balance -= data.amount
     
+    # Double-entry logic: Deduct from bank account if provided
+    bank_account_id_to_use = None
+    if data.bank_account_id:
+        bank_result = await db.execute(
+            select(BankAccount).where(BankAccount.id == data.bank_account_id, BankAccount.user_id == current_user.id)
+        )
+        bank_account = bank_result.scalar_one_or_none()
+        if bank_account:
+            bank_account.balance -= data.amount
+            bank_account_id_to_use = bank_account.id
+    
+    from datetime import date
+    if isinstance(data.date, str):
+        txn_date = date.fromisoformat(data.date)
+    else:
+        txn_date = data.date
+        
     # Create transaction
     txn = Transaction(
         user_id=current_user.id,
         amount=data.amount,
-        type="expense",
-        date=data.date,
-        description="Credit Card Payment",
-        merchant=card.bank_name
+        type="expense", # Since paying a CC is functionally moving cash to an expense bucket
+        date=txn_date,
+        description=f"Credit Card Payment: {card.name}",
+        merchant=card.bank_name,
+        payment_method="bank_transfer",
+        bank_account_id=bank_account_id_to_use,
+        status="completed"
     )
     db.add(txn)
     

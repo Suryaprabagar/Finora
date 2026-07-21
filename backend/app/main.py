@@ -41,3 +41,14 @@ async def health_check():
 @app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME} API", "docs": "/api/docs"}
+
+
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    with open("error_log.txt", "a") as f:
+        f.write(traceback.format_exc() + "\n")
+    return JSONResponse(status_code=500, content={"detail": str(exc)})

@@ -28,6 +28,7 @@ class BillPaymentCreate(BaseModel):
     paid_date: date
     status: str = "paid"
     notes: Optional[str] = None
+    bank_account_id: Optional[uuid.UUID] = None
 
 
 class BillResponse(BaseModel):

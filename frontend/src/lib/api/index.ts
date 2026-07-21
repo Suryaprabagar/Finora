@@ -71,6 +71,7 @@ export const investmentsApi = {
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/investments', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/investments/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/investments/${id}`),
+  sync: () => apiClientModule.post<APIResponse<any>>('/investments/sync'),
 }
 
 export const loansApi = {
@@ -138,4 +139,8 @@ export const expensesApi = {
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/expenses', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/expenses/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/expenses/${id}`),
+}
+
+export const analyticsApi = {
+  getDashboard: () => apiClientModule.get<APIResponse<any>>('/analytics/dashboard').then((res) => res.data),
 }

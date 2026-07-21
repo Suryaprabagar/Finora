@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -19,6 +20,7 @@ export default function BillsPage() {
   const [payBill, setPayBill] = useState<any>(null)
 
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const { data: summaryRes, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['bills-summary'],
@@ -28,6 +30,11 @@ export default function BillsPage() {
   const { data: listRes, isLoading: isListLoading } = useQuery({
     queryKey: ['bills'],
     queryFn: () => billsApi.list().then(r => r.data),
+  })
+  
+  const { data: upcomingRes, isLoading: isUpcomingLoading } = useQuery({
+    queryKey: ['bills-upcoming'],
+    queryFn: () => billsApi.upcoming().then(r => r.data),
   })
 
   const deleteMutation = useMutation({
@@ -46,6 +53,7 @@ export default function BillsPage() {
 
   const summary = summaryRes?.data || { upcoming_amount: 0, paid_mtd: 0, overdue_count: 0, monthly_average: 0, active_count: 0 }
   const bills = listRes?.data || []
+  const upcomingDues = upcomingRes?.data || []
 
   const handleAdd = () => {
     setEditingBill(null)
@@ -100,8 +108,63 @@ export default function BillsPage() {
         />
       </div>
 
+      <div className="finora-card p-6 mb-8">
+        <h3 className="font-display font-bold text-lg mb-6 text-[#1f1b18]">Upcoming Payments (Next 30 Days)</h3>
+        {isUpcomingLoading ? (
+          <div className="space-y-4">
+            {[1, 2].map(i => (
+              <div key={i} className="h-16 animate-pulse bg-surface-variant/30 rounded-lg"></div>
+            ))}
+          </div>
+        ) : upcomingDues.length > 0 ? (
+          <div className="divide-y divide-outline-variant">
+            {upcomingDues.map((due: any, idx: number) => {
+              const isOverdue = due.days_until_due !== null && due.days_until_due < 0;
+              return (
+                <div key={`${due.source_type}-${due.id}-${idx}`} className="py-4 flex justify-between items-center group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-surface-variant/50 text-on-surface-variant flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]">{due.icon || 'receipt'}</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-[#1f1b18]">{due.name}</h4>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-semibold capitalize ${due.source_type === 'loan' ? 'bg-tertiary-container text-on-tertiary-container' : due.source_type === 'credit_card' ? 'bg-error-container text-error' : 'bg-primary-container text-on-primary-container'}`}>
+                          {due.source_type.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant mt-1">
+                        Due: {due.due_date ? formatDate(due.due_date) : 'N/A'} {isOverdue && <span className="text-error font-medium">• Overdue</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <p className="font-bold text-base text-[#1f1b18]">{formatCurrency(due.amount)}</p>
+                    <button 
+                      onClick={() => {
+                        if (due.source_type === 'loan') router.push('/loans')
+                        else if (due.source_type === 'credit_card') router.push('/credit-cards')
+                        else setPayBill(due) // For bill, use local modal
+                      }}
+                      className="text-xs font-semibold text-primary hover:bg-primary-container/30 px-2.5 py-1.5 rounded transition-colors"
+                    >
+                      Pay / View
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-on-surface-variant">No upcoming payments in the next 30 days.</p>
+          </div>
+        )}
+      </div>
+
       <div className="finora-card p-6">
-        <h3 className="font-display font-bold text-lg mb-6 text-[#1f1b18]">Your Bills</h3>
+        <h3 className="font-display font-bold text-lg mb-6 text-[#1f1b18]">Recurring Bill Schedules</h3>
         
         {isListLoading ? (
           <div className="space-y-4">
@@ -132,14 +195,6 @@ export default function BillsPage() {
                   <div className="flex items-center gap-4">
                     <p className="font-bold text-base text-[#1f1b18]">{formatCurrency(bill.amount)}</p>
                     <div className="flex gap-1">
-                      {bill.status === 'active' && (
-                        <button 
-                          onClick={() => setPayBill(bill)}
-                          className="text-xs font-semibold text-primary hover:bg-primary-container/30 px-2.5 py-1.5 rounded transition-colors"
-                        >
-                          Pay
-                        </button>
-                      )}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
                         <button onClick={() => handleEdit(bill)} className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md">
                           <span className="material-symbols-outlined text-[18px]">edit</span>

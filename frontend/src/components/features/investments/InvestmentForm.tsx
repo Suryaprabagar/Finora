@@ -12,10 +12,10 @@ import { useEffect } from 'react'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['mutual_fund', 'stock', 'crypto', 'fd', 'gold', 'other']),
+  type: z.enum(['mutual_fund', 'stock', 'crypto', 'fd', 'gold', 'bonds', 'other']),
   symbol: z.string().optional(),
   purchase_price: z.coerce.number().positive('Purchase price must be positive'),
-  current_price: z.coerce.number().positive('Current price must be positive'),
+  current_price: z.coerce.number().min(0, 'Current price must be 0 or positive'),
   quantity: z.coerce.number().positive('Quantity must be positive'),
   purchase_date: z.string().min(1, 'Purchase date is required'),
   maturity_date: z.string().optional(),
@@ -41,6 +41,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
@@ -93,6 +94,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
       queryClient.invalidateQueries({ queryKey: ['investments'] })
       queryClient.invalidateQueries({ queryKey: ['investments-summary'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['analyticsDashboard'] })
       toast.success(isEditing ? 'Investment updated' : 'Investment holding added')
       onSuccess?.()
     },
@@ -102,8 +104,17 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
   })
 
   const onSubmit = (data: FormData) => {
+    // For fixed-income assets, we default quantity to 1 and current price to principal
+    if (['fd', 'bonds', 'other'].includes(data.type)) {
+      data.quantity = 1
+      data.current_price = data.purchase_price
+    }
     mutation.mutate(data)
   }
+
+  const selectedType = watch('type')
+  const showSymbol = ['stock', 'mutual_fund', 'crypto'].includes(selectedType)
+  const isFixedIncome = ['fd', 'bonds', 'other'].includes(selectedType)
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -113,10 +124,12 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
           <Input id="name" placeholder="e.g. Parag Parikh Flexi Cap" {...register('name')} />
           {errors.name && <p className="text-sm text-error">{errors.name.message}</p>}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="symbol">Symbol / Ticker</Label>
-          <Input id="symbol" placeholder="e.g. RELIANCE, BTC" {...register('symbol')} />
-        </div>
+        {showSymbol && (
+          <div className="space-y-2">
+            <Label htmlFor="symbol">Symbol / Ticker</Label>
+            <Input id="symbol" placeholder="e.g. RELIANCE, BTC" {...register('symbol')} />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -131,6 +144,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
             <option value="stock">Equity / Stock</option>
             <option value="crypto">Cryptocurrency</option>
             <option value="fd">Fixed Deposit (FD)</option>
+            <option value="bonds">Bonds</option>
             <option value="gold">Gold Holdings</option>
             <option value="other">Other</option>
           </select>
@@ -142,34 +156,42 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid ${isFixedIncome ? 'grid-cols-1' : (showSymbol ? 'grid-cols-2' : 'grid-cols-3')} gap-4`}>
+        {!isFixedIncome && (
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Quantity *</Label>
+            <Input id="quantity" type="number" step="0.0001" {...register('quantity')} />
+            {errors.quantity && <p className="text-sm text-error">{errors.quantity.message}</p>}
+          </div>
+        )}
+        
         <div className="space-y-2">
-          <Label htmlFor="quantity">Quantity *</Label>
-          <Input id="quantity" type="number" step="0.0001" {...register('quantity')} />
-          {errors.quantity && <p className="text-sm text-error">{errors.quantity.message}</p>}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="purchase_price">Buy Price (Average) *</Label>
+          <Label htmlFor="purchase_price">{isFixedIncome ? 'Principal / Invested Amount *' : 'Buy Price (Average) *'}</Label>
           <Input id="purchase_price" type="number" step="0.01" {...register('purchase_price')} />
           {errors.purchase_price && <p className="text-sm text-error">{errors.purchase_price.message}</p>}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="current_price">Current Unit Price *</Label>
-          <Input id="current_price" type="number" step="0.01" {...register('current_price')} />
-          {errors.current_price && <p className="text-sm text-error">{errors.current_price.message}</p>}
-        </div>
+        
+        {!showSymbol && !isFixedIncome && (
+          <div className="space-y-2">
+            <Label htmlFor="current_price">Current Unit Price *</Label>
+            <Input id="current_price" type="number" step="0.01" {...register('current_price')} />
+            {errors.current_price && <p className="text-sm text-error">{errors.current_price.message}</p>}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="interest_rate">Interest Rate (% for FD/Bonds)</Label>
-          <Input id="interest_rate" type="number" step="0.01" {...register('interest_rate')} />
+      {isFixedIncome && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="interest_rate">Interest Rate (% for FD/Bonds)</Label>
+            <Input id="interest_rate" type="number" step="0.01" {...register('interest_rate')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="maturity_date">Maturity Date (FD/Bonds)</Label>
+            <Input id="maturity_date" type="date" {...register('maturity_date')} />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="maturity_date">Maturity Date (FD/Bonds)</Label>
-          <Input id="maturity_date" type="date" {...register('maturity_date')} />
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

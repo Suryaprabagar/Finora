@@ -46,4 +46,5 @@ class CreditCardResponse(BaseModel):
 class CreditCardPaymentCreate(BaseModel):
     amount: Decimal
     date: str
+    bank_account_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None

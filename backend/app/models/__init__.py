@@ -21,3 +21,4 @@ __all__ = [
     "Asset", "InsurancePolicy", "InsuranceClaim", "Report",
     "AssetAllocation", "ObjectiveHistory",
 ]
+from app.models.portfolio_snapshot import PortfolioSnapshot
