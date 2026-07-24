@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
@@ -44,11 +44,18 @@ export function TopBar() {
 
   const title = pageTitles[pathname] ?? 'Finora'
 
-  const handleSearch = debounce((query: string) => {
-    if (query.trim()) {
-      console.log('Searching for:', query)
-    }
-  }, 300)
+  const handleSearch = useMemo(
+    () => debounce((query: string) => {
+      if (query.trim()) {
+        console.log('Searching for:', query)
+      }
+    }, 300),
+    []
+  )
+
+  useEffect(() => {
+    return () => handleSearch.cancel()
+  }, [handleSearch])
 
   const handleLogout = () => {
     logout()
@@ -124,7 +131,7 @@ export function TopBar() {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
               <div
-                className="absolute right-0 top-full mt-2 w-52 z-50 rounded-xl overflow-hidden"
+                className="absolute right-0 top-full mt-2 w-52 z-[60] rounded-xl overflow-hidden"
                 style={{ background: 'white', border: '1px solid #E7E2DB', boxShadow: '0 8px 24px rgba(139,94,60,0.12)' }}
               >
                 <div className="px-4 py-3 border-b border-[#E7E2DB]">

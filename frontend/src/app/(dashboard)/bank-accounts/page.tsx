@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { bankAccountsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -15,6 +15,13 @@ export default function BankAccountsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<any>(null)
   const [accountToDelete, setAccountToDelete] = useState<any>(null)
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
   
   const queryClient = useQueryClient()
 
@@ -51,7 +58,7 @@ export default function BankAccountsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingAccount(null), 200) // Clear after animation
+    closeTimerRef.current = setTimeout(() => setEditingAccount(null), 200) // Clear after animation
   }
 
   return (

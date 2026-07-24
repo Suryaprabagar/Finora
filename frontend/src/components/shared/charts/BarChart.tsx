@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import {
   BarChart as RechartsBarChart,
   Bar,
@@ -20,7 +22,7 @@ interface BarChartProps {
   formatValue?: (v: number) => string
 }
 
-export function BarChart({
+export const BarChart = React.memo(function BarChart({
   data,
   xKey,
   bars,
@@ -85,4 +87,4 @@ export function BarChart({
       </ResponsiveContainer>
     </div>
   )
-}
+})

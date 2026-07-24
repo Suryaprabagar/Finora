@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { insuranceApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -17,6 +17,14 @@ export default function InsurancePage() {
   const [editingPolicy, setEditingPolicy] = useState<any>(null)
   const [policyToDelete, setPolicyToDelete] = useState<any>(null)
   const [claimPolicy, setClaimPolicy] = useState<any>(null)
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -59,7 +67,7 @@ export default function InsurancePage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingPolicy(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingPolicy(null), 200)
   }
 
   return (

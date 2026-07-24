@@ -3,8 +3,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { investmentsApi } from '@/lib/api'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { investmentsApi, bankAccountsApi } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -23,6 +23,7 @@ const schema = z.object({
   broker: z.string().optional(),
   folio_number: z.string().optional(),
   notes: z.string().optional(),
+  bank_account_id: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -36,6 +37,12 @@ interface InvestmentFormProps {
 export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentFormProps) {
   const queryClient = useQueryClient()
   const isEditing = !!initialData
+
+  const { data: accountsRes } = useQuery({
+    queryKey: ['bank-accounts'],
+    queryFn: () => bankAccountsApi.list().then(r => r.data),
+  })
+  const accounts = accountsRes?.data || []
 
   const {
     register,
@@ -99,7 +106,12 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
       onSuccess?.()
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'An error occurred')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0].msg || 'Validation Error')
+      } else {
+        toast.error(detail || 'An error occurred')
+      }
     },
   })
 
@@ -204,9 +216,24 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Input id="notes" placeholder="Notes..." {...register('notes')} />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="bank_account_id">Linked Bank Account</Label>
+          <select 
+            id="bank_account_id" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('bank_account_id')}
+          >
+            <option value="">None</option>
+            {accounts.map((acc: any) => (
+              <option key={acc.id} value={acc.id}>{acc.name} (Bal: {acc.balance})</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="notes">Notes</Label>
+          <Input id="notes" placeholder="Notes..." {...register('notes')} />
+        </div>
       </div>
 
       <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white pb-2">

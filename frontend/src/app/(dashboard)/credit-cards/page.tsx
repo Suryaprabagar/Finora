@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { creditCardsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -17,6 +17,13 @@ export default function CreditCardsPage() {
   const [editingCard, setEditingCard] = useState<any>(null)
   const [cardToDelete, setCardToDelete] = useState<any>(null)
   const [paymentCard, setPaymentCard] = useState<any>(null)
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -54,7 +61,7 @@ export default function CreditCardsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingCard(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingCard(null), 200)
   }
 
   return (

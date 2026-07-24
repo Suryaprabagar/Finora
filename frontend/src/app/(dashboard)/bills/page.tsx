@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { billsApi } from '@/lib/api'
@@ -18,6 +18,13 @@ export default function BillsPage() {
   const [editingBill, setEditingBill] = useState<any>(null)
   const [billToDelete, setBillToDelete] = useState<any>(null)
   const [payBill, setPayBill] = useState<any>(null)
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -67,7 +74,7 @@ export default function BillsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingBill(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingBill(null), 200)
   }
 
   return (

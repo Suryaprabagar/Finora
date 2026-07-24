@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { goalsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -19,6 +19,12 @@ export default function FinancialPlanningWorkspace() {
   const [goalToDelete, setGoalToDelete] = useState<any>(null)
   const [contributeGoal, setContributeGoal] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'goals' | 'retirement' | 'tax'>('overview')
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -81,7 +87,7 @@ export default function FinancialPlanningWorkspace() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingGoal(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingGoal(null), 200)
   }
 
   return (

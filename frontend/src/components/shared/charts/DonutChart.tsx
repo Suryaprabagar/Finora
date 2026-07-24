@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import {
   PieChart,
   Pie,
@@ -18,7 +20,7 @@ interface DonutChartProps {
   formatValue?: (v: number) => string
 }
 
-export function DonutChart({
+export const DonutChart = React.memo(function DonutChart({
   data,
   height = 300,
   showLegend = true,
@@ -97,4 +99,4 @@ export function DonutChart({
       )}
     </div>
   )
-}
+})

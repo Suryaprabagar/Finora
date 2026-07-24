@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { assetsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -15,6 +15,13 @@ export default function AssetsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<any>(null)
   const [assetToDelete, setAssetToDelete] = useState<any>(null)
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -57,7 +64,7 @@ export default function AssetsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingAsset(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingAsset(null), 200)
   }
 
   return (

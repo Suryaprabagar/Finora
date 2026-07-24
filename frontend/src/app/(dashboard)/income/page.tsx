@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { incomeApi } from '@/lib/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DonutChart } from '@/components/shared/charts/DonutChart'
 import { downloadCSV } from '@/lib/export'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function IncomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -18,6 +19,14 @@ export default function IncomePage() {
   const [transactionToDelete, setTransactionToDelete] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [trendPeriod, setTrendPeriod] = useState<'6M' | '1Y' | 'All'>('1Y')
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -53,15 +62,16 @@ export default function IncomePage() {
 
   const summary = summaryRes?.data || { monthly_total: 0, annual_total: 0, recurring_count: 0, pending_count: 0, largest_source: { name: 'None', amount: 0 } }
   const categoriesData = categoriesRes?.data || []
-  let incomes = listRes?.data || []
-  
-  if (searchTerm) {
-    incomes = incomes.filter((tx: any) => 
-      tx.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.category?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.bank_account?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const incomes = useMemo(() => {
+    const list = listRes?.data || []
+    if (!searchTerm) return list
+    const term = searchTerm.toLowerCase()
+    return list.filter((tx: any) => 
+      tx.description?.toLowerCase().includes(term) ||
+      tx.category?.name?.toLowerCase().includes(term) ||
+      tx.bank_account?.name?.toLowerCase().includes(term)
     )
-  }
+  }, [listRes?.data, searchTerm])
 
   const handleAdd = () => {
     setEditingTransaction({ type: 'income' })
@@ -75,7 +85,7 @@ export default function IncomePage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingTransaction(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingTransaction(null), 200)
   }
 
   return (
@@ -234,16 +244,9 @@ export default function IncomePage() {
               <div className="h-[300px] flex items-center justify-center">
                 <div className="w-48 h-48 rounded-full border-8 border-surface-variant/30 animate-pulse" />
               </div>
-            ) : (
+            ) : (categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.percentage || c.total || c.amount || 0), 0) > 0) ? (
               <DonutChart
-                data={((categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.percentage || c.total || c.amount || 0), 0) > 0) 
-                  ? categoriesData 
-                  : [
-                      { category: 'Salary', percentage: 72 },
-                      { category: 'Freelance', percentage: 18 },
-                      { category: 'Investments', percentage: 10 }
-                    ]
-                ).map((c: any, i: number) => {
+                data={categoriesData.map((c: any, i: number) => {
                   const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-tertiary)', 'var(--color-outline-variant)', 'var(--color-surface-variant)'];
                   return {
                     name: c.category || c.name,
@@ -255,6 +258,8 @@ export default function IncomePage() {
                 centerLabel="Total"
                 centerValue={formatCurrency(summary.monthly_total || 120000)}
               />
+            ) : (
+              <EmptyState title="No income data" icon="pie_chart" />
             )}
           </div>
 

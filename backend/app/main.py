@@ -43,12 +43,14 @@ async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME} API", "docs": "/api/docs"}
 
 
-from fastapi.responses import JSONResponse
-from fastapi import Request
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
-    with open("error_log.txt", "a") as f:
-        f.write(traceback.format_exc() + "\n")
+    logger.error(f"Unhandled exception on {request.url}: {traceback.format_exc()}")
     return JSONResponse(status_code=500, content={"detail": str(exc)})
+

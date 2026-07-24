@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { expensesApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { TransactionForm } from '@/components/features/transactions/TransactionForm'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { toast } from 'sonner'
 
 export default function ExpensesPage() {
@@ -19,6 +20,14 @@ export default function ExpensesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [velocityPeriod, setVelocityPeriod] = useState<'Daily' | 'Weekly'>('Daily')
   const [monthFilter, setMonthFilter] = useState<'Sep' | 'Oct'>('Sep')
+
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -54,15 +63,16 @@ export default function ExpensesPage() {
 
   const summary = summaryRes?.data || { monthly_total: 0, top_category: 'None', avg_daily: 0 }
   const categoriesData = categoriesRes?.data || []
-  let expenses = listRes?.data || []
-
-  if (searchTerm) {
-    expenses = expenses.filter((tx: any) => 
-      tx.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.category?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.bank_account?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const expenses = useMemo(() => {
+    const list = listRes?.data || []
+    if (!searchTerm) return list
+    const term = searchTerm.toLowerCase()
+    return list.filter((tx: any) => 
+      tx.description?.toLowerCase().includes(term) ||
+      tx.category?.name?.toLowerCase().includes(term) ||
+      tx.bank_account?.name?.toLowerCase().includes(term)
     )
-  }
+  }, [listRes?.data, searchTerm])
 
   const handleAdd = () => {
     setEditingTransaction({ type: 'expense' })
@@ -76,7 +86,7 @@ export default function ExpensesPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingTransaction(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingTransaction(null), 200)
   }
 
   return (
@@ -187,7 +197,7 @@ export default function ExpensesPage() {
                 return (
                   <div key={i} className={`w-full h-full flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer ${velocityPeriod === 'Daily' ? 'max-w-[32px]' : 'max-w-[64px]'}`}>
                     <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${velocityPeriod === 'Daily' ? h : h/2}%` }}>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none z-30">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-30 text-center pointer-events-none">
                         {isHighest ? 'Peak' : dateStr}:<br/>{formatCurrency(val)}
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
                       </div>
@@ -209,25 +219,22 @@ export default function ExpensesPage() {
               <div className="h-[300px] flex items-center justify-center">
                 <div className="w-48 h-48 rounded-full border-8 border-surface-variant/30 animate-pulse" />
               </div>
-            ) : (
+            ) : (categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.total || c.amount || c.value || 0), 0) > 0) ? (
               <DonutChart
-                data={(categoriesData.length > 0 && categoriesData.reduce((sum: number, c: any) => sum + Number(c.total || c.amount || c.value || 0), 0) > 0) ? categoriesData.map((c: any, i: number) => {
+                data={categoriesData.map((c: any, i: number) => {
                   const colors = ['var(--color-primary)', 'var(--color-secondary)', 'var(--color-tertiary)', 'var(--color-outline-variant)', 'var(--color-surface-variant)'];
                   return {
                     name: c.category || c.name,
                     value: Number(c.total || c.amount || c.value || 0),
                     color: colors[i % colors.length]
                   };
-                }) : [
-                  { name: 'Housing & Utilities', value: 2800, color: 'var(--color-primary)' },
-                  { name: 'Food & Dining', value: 1200, color: 'var(--color-secondary)' },
-                  { name: 'Transportation', value: 450, color: 'var(--color-tertiary)' },
-                  { name: 'Entertainment', value: 300, color: 'var(--color-outline-variant)' },
-                ]}
+                })}
                 height={300}
                 centerLabel="Total"
                 centerValue={formatCurrency(summary.monthly_total || 4750)}
               />
+            ) : (
+              <EmptyState title="No expense data" icon="pie_chart" />
             )}
           </div>
         </div>
@@ -265,13 +272,13 @@ export default function ExpensesPage() {
 
         <div className="finora-card p-6 flex flex-col justify-between">
           <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-4">Monthly Comparison</h3>
-          <div className="flex-1 flex items-end justify-center gap-12 relative px-8">
-            <div className="flex flex-col items-center gap-3 w-16">
+          <div className="flex-1 flex items-end justify-center gap-6 sm:gap-12 relative px-4 sm:px-8">
+            <div className="flex flex-col items-center gap-3 w-12 sm:w-16">
               <div className="w-full bg-surface-container rounded-t" style={{ height: '140px' }}></div>
               <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">August</span>
               <span className="text-[13px] font-bold text-on-surface">{formatCurrency(14710)}</span>
             </div>
-            <div className="flex flex-col items-center gap-3 w-16">
+            <div className="flex flex-col items-center gap-3 w-12 sm:w-16">
               <div className="w-full bg-primary rounded-t" style={{ height: '130px' }}></div>
               <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">September</span>
               <span className="text-[13px] font-bold text-on-surface">{formatCurrency(14240)}</span>

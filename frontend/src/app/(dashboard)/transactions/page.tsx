@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { transactionsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -20,6 +20,12 @@ export default function TransactionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTxn, setEditingTxn] = useState<any>(null)
   const [txnToDelete, setTxnToDelete] = useState<any>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -54,7 +60,7 @@ export default function TransactionsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingTxn(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingTxn(null), 200)
   }
 
   const handleExport = () => {

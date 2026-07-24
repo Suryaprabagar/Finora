@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { loansApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -17,6 +17,12 @@ export default function LoansPage() {
   const [editingLoan, setEditingLoan] = useState<any>(null)
   const [loanToDelete, setLoanToDelete] = useState<any>(null)
   const [payEMI, setPayEMI] = useState<any>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -59,7 +65,7 @@ export default function LoansPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingLoan(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingLoan(null), 200)
   }
 
   return (

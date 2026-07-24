@@ -1,19 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { investmentsApi, analyticsApi } from '@/lib/api'
 
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { InvestmentForm } from '@/components/features/investments/InvestmentForm'
+import { InvestmentTradeForm } from '@/components/features/investments/InvestmentTradeForm'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { toast } from 'sonner'
 
 export default function InvestmentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState(false)
   const [editingInvestment, setEditingInvestment] = useState<any>(null)
+  const [investmentToTrade, setInvestmentToTrade] = useState<any>(null)
   const [investmentToDelete, setInvestmentToDelete] = useState<any>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    }
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -85,9 +95,19 @@ export default function InvestmentsPage() {
     setIsModalOpen(true)
   }
 
+  const handleTrade = (investment: any) => {
+    setInvestmentToTrade(investment)
+    setIsTradeModalOpen(true)
+  }
+
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setTimeout(() => setEditingInvestment(null), 200)
+    closeTimerRef.current = setTimeout(() => setEditingInvestment(null), 200)
+  }
+
+  const handleCloseTradeModal = () => {
+    setIsTradeModalOpen(false)
+    closeTimerRef.current = setTimeout(() => setInvestmentToTrade(null), 200)
   }
 
   return (
@@ -125,11 +145,11 @@ export default function InvestmentsPage() {
         {/* Today's Gain */}
         <div className="editorial-card p-6 rounded-xl">
           <p className="text-on-surface-variant uppercase text-xs tracking-wider font-bold mb-2">Today's Gain</p>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex flex-col mt-1">
             <p className={`text-xl font-bold ${todayGain >= 0 ? 'text-[#2e7d32]' : 'text-error'}`}>
               {todayGain >= 0 ? '+' : ''}{formatCurrency(todayGain)}
             </p>
-            <p className={`text-sm font-semibold ${todayGain >= 0 ? 'text-[#2e7d32]' : 'text-error'}`}>
+            <p className={`text-sm font-semibold mt-0.5 ${todayGain >= 0 ? 'text-[#2e7d32]' : 'text-error'}`}>
               ({todayGain >= 0 ? '+' : ''}{todayGainPct.toFixed(2)}%)
             </p>
           </div>
@@ -228,22 +248,52 @@ export default function InvestmentsPage() {
         {/* Performance vs Benchmark */}
         <div className="col-span-12 lg:col-span-8 editorial-card p-6 rounded-xl">
           <p className="text-on-surface-variant uppercase text-xs tracking-wider font-bold mb-8">Performance Comparison (1Y Return %)</p>
-          <div className="flex items-end gap-6 h-40 px-4">
-            <div className="flex-1 flex flex-col items-center gap-3 h-full justify-end">
-              <div className="w-full bg-primary/10 rounded-t-lg relative group border-b-2 border-primary overflow-hidden" style={{height: `${Math.min(100, Math.max(10, analytics?.summary?.total_gain_pct || 0))}%`}}>
-                <div className="absolute bottom-0 left-0 right-0 bg-primary rounded-t-lg transition-all duration-700 opacity-90" style={{ height: '100%' }}></div>
-              </div>
-              <span className="text-[10px] uppercase font-bold text-on-surface tracking-wider">Portfolio ({analytics?.summary?.total_gain_pct?.toFixed(2)}%)</span>
-            </div>
-            
-            {analytics?.benchmarks?.map((bench: any) => (
-              <div key={bench.name} className="flex-1 flex flex-col items-center gap-3 h-full justify-end">
-                <div className="w-full bg-surface-variant rounded-t-lg relative border-b-2 border-outline-variant overflow-hidden" style={{height: `${Math.min(100, Math.max(10, bench.return_pct))}%`}}>
-                  <div className="absolute bottom-0 left-0 right-0 bg-secondary rounded-t-lg opacity-50 h-full"></div>
-                </div>
-                <span className="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">{bench.name} ({bench.return_pct}%)</span>
-              </div>
-            ))}
+          <div className="flex gap-4 h-56 px-2">
+            {(() => {
+              const portfolioReturn = analytics?.summary?.total_gain_pct || 0;
+              const benchmarks = analytics?.benchmarks || [];
+              const allItems = [
+                { name: 'Portfolio', val: portfolioReturn, isPort: true },
+                ...benchmarks.map((b: any) => ({ name: b.name, val: b.return_pct, isPort: false }))
+              ];
+              const maxAbs = Math.max(10, ...allItems.map(i => Math.abs(i.val)));
+
+              return allItems.map((item, idx) => {
+                const isPositive = item.val >= 0;
+                const heightPct = (Math.abs(item.val) / maxAbs) * 100;
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center h-full">
+                    {/* Positive Space */}
+                    <div className="w-full flex-1 flex items-end justify-center pb-1">
+                      {isPositive && (
+                        <div 
+                          className={`w-4/5 rounded-t-md ${item.isPort ? 'bg-primary' : 'bg-secondary'}`} 
+                          style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                        ></div>
+                      )}
+                    </div>
+                    {/* Zero Line */}
+                    <div className="w-full h-[1px] bg-outline-variant/60"></div>
+                    {/* Negative Space */}
+                    <div className="w-full flex-1 flex items-start justify-center pt-1 relative">
+                      {!isPositive && (
+                        <div 
+                          className={`w-4/5 rounded-b-md ${item.isPort ? 'bg-primary' : 'bg-surface-variant'}`} 
+                          style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                        ></div>
+                      )}
+                      {/* Label - Absolute position at bottom so they align perfectly horizontally */}
+                      <div className="absolute bottom-0 text-center w-full">
+                        <p className="text-[9px] sm:text-[10px] uppercase font-bold text-on-surface-variant tracking-wider leading-tight truncate">{item.name}</p>
+                        <p className={`text-[10px] sm:text-xs font-bold mt-0.5 ${isPositive ? 'text-primary' : 'text-on-surface-variant'}`}>
+                          {isPositive ? '+' : ''}{item.val.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
         
@@ -332,10 +382,13 @@ export default function InvestmentsPage() {
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEdit(inv)} className="p-2 text-on-surface-variant hover:text-primary transition-colors hover:bg-primary/10 rounded-md">
+                        <button onClick={() => handleTrade(inv)} className="p-2 text-on-surface-variant hover:text-primary transition-colors hover:bg-primary/10 rounded-md" title="Buy/Sell">
+                          <span className="material-symbols-outlined text-[16px]">currency_exchange</span>
+                        </button>
+                        <button onClick={() => handleEdit(inv)} className="p-2 text-on-surface-variant hover:text-primary transition-colors hover:bg-primary/10 rounded-md" title="Edit Details">
                           <span className="material-symbols-outlined text-[16px]">edit</span>
                         </button>
-                        <button onClick={() => setInvestmentToDelete(inv)} className="p-2 text-on-surface-variant hover:text-error transition-colors hover:bg-error-container/50 rounded-md">
+                        <button onClick={() => setInvestmentToDelete(inv)} className="p-2 text-on-surface-variant hover:text-error transition-colors hover:bg-error-container/50 rounded-md" title="Delete">
                           <span className="material-symbols-outlined text-[16px]">delete</span>
                         </button>
                       </div>
@@ -447,6 +500,25 @@ export default function InvestmentsPage() {
             onSuccess={handleCloseModal}
             onCancel={handleCloseModal}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Trade modal */}
+      <Dialog open={isTradeModalOpen} onOpenChange={setIsTradeModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Trade Investment</DialogTitle>
+            <DialogDescription>
+              Buy more units or sell your existing holdings.
+            </DialogDescription>
+          </DialogHeader>
+          {investmentToTrade && (
+            <InvestmentTradeForm 
+              investment={investmentToTrade} 
+              onSuccess={handleCloseTradeModal} 
+              onCancel={handleCloseTradeModal} 
+            />
+          )}
         </DialogContent>
       </Dialog>
 

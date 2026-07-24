@@ -72,6 +72,7 @@ export const investmentsApi = {
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/investments/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/investments/${id}`),
   sync: () => apiClientModule.post<APIResponse<any>>('/investments/sync'),
+  trade: (id: string, data: unknown) => apiClientModule.post<APIResponse<any>>(`/investments/${id}/trade`, data),
 }
 
 export const loansApi = {
