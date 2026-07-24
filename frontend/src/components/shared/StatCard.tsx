@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 interface StatCardProps {
   title: string
   value: string | React.ReactNode
@@ -8,6 +10,7 @@ interface StatCardProps {
   iconBg?: string
   className?: string
   loading?: boolean
+  href?: string
 }
 
 export function StatCard({
@@ -20,7 +23,9 @@ export function StatCard({
   iconBg = '#ffdcc5',
   className = '',
   loading = false,
+  href,
 }: StatCardProps) {
+  
   if (loading) {
     return (
       <div className={`rounded-xl p-5 ${className}`} style={{ background: 'white', border: '1px solid #E7E2DB', boxShadow: '0 1px 3px rgba(0,0,0,0.02), 0 4px 12px rgba(139,94,60,0.03)' }}>
@@ -37,9 +42,9 @@ export function StatCard({
   const trendIsPositive = trend && trend.value > 0
   const trendIsNegative = trend && trend.value < 0
 
-  return (
+  const content = (
     <div
-      className={`rounded-xl p-5 flex flex-col justify-between transition-all duration-200 ${className}`}
+      className={`rounded-xl p-5 flex flex-col justify-between transition-all duration-200 ${className} ${href ? 'hover:border-primary cursor-pointer' : ''}`}
       style={{
         background: 'white',
         border: '1px solid #E7E2DB',
@@ -90,4 +95,9 @@ export function StatCard({
       </div>
     </div>
   )
+
+  if (href) {
+    return <Link href={href} className="block">{content}</Link>
+  }
+  return content
 }

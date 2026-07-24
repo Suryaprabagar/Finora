@@ -12,10 +12,13 @@ from app.models.loan import Loan, LoanPayment
 from app.models.asset import Asset
 from app.models.insurance import InsurancePolicy, InsuranceClaim
 from app.models.report import Report
+from app.models.planning import AssetAllocation, ObjectiveHistory
 
 __all__ = [
     "User", "Category", "BankAccount", "CreditCard", "Transaction",
     "Budget", "BudgetItem", "Goal", "GoalContribution",
     "Bill", "BillPayment", "Investment", "Loan", "LoanPayment",
     "Asset", "InsurancePolicy", "InsuranceClaim", "Report",
+    "AssetAllocation", "ObjectiveHistory",
 ]
+from app.models.portfolio_snapshot import PortfolioSnapshot

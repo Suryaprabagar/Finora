@@ -37,7 +37,7 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register_original", status_code=status.HTTP_201_CREATED)
 async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user and create default categories."""
     # Check if email already exists
@@ -82,7 +82,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/login")
+@router.post("/login_original")
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT tokens."""
     result = await db.execute(select(User).where(User.email == data.email, User.is_active.is_(True)))
@@ -184,3 +184,19 @@ async def reset_password(data: ResetPasswordRequest, db: AsyncSession = Depends(
 async def get_me(current_user: User = Depends(get_current_user)):
     """Return the current authenticated user's profile."""
     return APIResponse(data=UserResponse.model_validate(current_user).model_dump())
+
+@router.post("/login")
+async def login_wrapper(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        return await login(data, db)
+    except Exception as e:
+        import traceback
+        return APIResponse(success=False, message=traceback.format_exc(), data=None)
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register_wrapper(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        return await register(data, db)
+    except Exception as e:
+        import traceback
+        return APIResponse(success=False, message=traceback.format_exc(), data=None)

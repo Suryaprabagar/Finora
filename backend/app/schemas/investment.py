@@ -19,7 +19,7 @@ class InvestmentCreate(BaseModel):
     broker: Optional[str] = None
     folio_number: Optional[str] = None
     notes: Optional[str] = None
-
+    bank_account_id: Optional[uuid.UUID] = None
 
 class InvestmentUpdate(InvestmentCreate):
     is_active: Optional[bool] = None
@@ -40,10 +40,19 @@ class InvestmentResponse(BaseModel):
     folio_number: Optional[str] = None
     notes: Optional[str] = None
     is_active: bool
+    bank_account_id: Optional[uuid.UUID] = None
     current_value: Decimal = Decimal("0")
     gain_loss: Decimal = Decimal("0")
     gain_loss_percent: float = 0.0
     created_at: datetime
 
+
     class Config:
         from_attributes = True
+
+
+class InvestmentTrade(BaseModel):
+    action: str  # "buy" or "sell"
+    quantity: Decimal
+    price: Decimal
+    bank_account_id: Optional[uuid.UUID] = None

@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import {
   PieChart,
   Pie,
@@ -18,7 +20,7 @@ interface DonutChartProps {
   formatValue?: (v: number) => string
 }
 
-export function DonutChart({
+export const DonutChart = React.memo(function DonutChart({
   data,
   height = 300,
   showLegend = true,
@@ -42,6 +44,10 @@ export function DonutChart({
               paddingAngle={2}
               dataKey="value"
               stroke="none"
+              isAnimationActive={true}
+              animationBegin={0}
+              animationDuration={1000}
+              animationEasing="ease-out"
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -93,4 +99,4 @@ export function DonutChart({
       )}
     </div>
   )
-}
+})

@@ -52,4 +52,6 @@ class LoanResponse(BaseModel):
 
 class LoanPaymentCreate(BaseModel):
     payment_date: date
+    amount_paid: Optional[Decimal] = None
+    bank_account_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None

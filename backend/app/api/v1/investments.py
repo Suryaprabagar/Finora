@@ -4,11 +4,13 @@ from sqlalchemy import select, desc, func
 from app.core.database import get_db
 from app.models.user import User
 from app.models.investment import Investment
+from app.models.bank_account import BankAccount
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
-from app.schemas.investment import InvestmentCreate, InvestmentUpdate, InvestmentResponse
+from app.schemas.investment import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentTrade
 import uuid
 from datetime import datetime, timezone
+from app.services.market_service import fetch_eod_prices
 
 router = APIRouter()
 
@@ -80,6 +82,12 @@ async def get_investments_summary(db: AsyncSession = Depends(get_db), current_us
 async def create_investment(data: InvestmentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     inv = Investment(**data.model_dump(), user_id=current_user.id)
     db.add(inv)
+    
+    if data.bank_account_id:
+        acc = await db.get(BankAccount, data.bank_account_id)
+        if acc:
+            acc.balance -= (data.purchase_price * data.quantity)
+            
     await db.commit()
     await db.refresh(inv)
     return APIResponse(data=InvestmentResponse.model_validate(inv).model_dump(), message="Investment created")
@@ -112,10 +120,31 @@ async def update_investment(id: uuid.UUID, data: InvestmentUpdate, db: AsyncSess
     if not inv:
         raise HTTPException(status_code=404, detail="Investment not found")
         
+    old_value = inv.purchase_price * inv.quantity
+    old_acc_id = inv.bank_account_id
+    
     update_data = data.model_dump(exclude_unset=True)
     for k, v in update_data.items():
         setattr(inv, k, v)
         
+    new_value = inv.purchase_price * inv.quantity
+    new_acc_id = inv.bank_account_id
+    
+    if old_acc_id == new_acc_id and old_acc_id is not None:
+        if old_value != new_value:
+            acc = await db.get(BankAccount, old_acc_id)
+            if acc:
+                acc.balance = acc.balance + old_value - new_value
+    elif old_acc_id != new_acc_id:
+        if old_acc_id is not None:
+            old_acc = await db.get(BankAccount, old_acc_id)
+            if old_acc:
+                old_acc.balance += old_value
+        if new_acc_id is not None:
+            new_acc = await db.get(BankAccount, new_acc_id)
+            if new_acc:
+                new_acc.balance -= new_value
+                
     await db.commit()
     await db.refresh(inv)
     return APIResponse(data=InvestmentResponse.model_validate(inv).model_dump(), message="Investment updated")
@@ -129,6 +158,82 @@ async def delete_investment(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
     if not inv:
         raise HTTPException(status_code=404, detail="Investment not found")
         
+    if inv.bank_account_id:
+        acc = await db.get(BankAccount, inv.bank_account_id)
+        if acc:
+            acc.balance += (inv.current_price * inv.quantity)
+            
     inv.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     return APIResponse(message="Investment deleted")
+@router.post("/sync")
+async def sync_investment_prices(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(
+        select(Investment)
+        .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
+    )
+    investments = result.scalars().all()
+    
+    # Collect unique symbols
+    symbols = list(set([inv.symbol for inv in investments if inv.symbol]))
+    
+    if not symbols:
+        return APIResponse(message="No valid symbols found to sync.")
+        
+    prices = await fetch_eod_prices(symbols)
+    
+
+    updated_count = 0
+    
+    for inv in investments:
+        if inv.symbol and inv.symbol in prices:
+            inv.current_price = prices[inv.symbol]
+            updated_count += 1
+            
+    if updated_count > 0:
+        await db.commit()
+        
+    return APIResponse(message=f"Synced {updated_count} investments with EOD market data.")
+
+@router.post("/{id}/trade")
+async def trade_investment(id: uuid.UUID, data: InvestmentTrade, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(
+        select(Investment).where(Investment.id == id, Investment.user_id == current_user.id, Investment.deleted_at.is_(None))
+    )
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investment not found")
+
+    old_qty = inv.quantity
+    old_avg = inv.purchase_price
+    
+    if data.action == "buy":
+        new_qty = old_qty + data.quantity
+        new_total_cost = (old_qty * old_avg) + (data.quantity * data.price)
+        new_avg = new_total_cost / new_qty if new_qty > 0 else 0
+        
+        inv.quantity = new_qty
+        inv.purchase_price = new_avg
+        inv.current_price = data.price
+        
+        if data.bank_account_id:
+            acc = await db.get(BankAccount, data.bank_account_id)
+            if acc:
+                acc.balance -= (data.quantity * data.price)
+                
+    elif data.action == "sell":
+        if data.quantity > old_qty:
+            raise HTTPException(status_code=400, detail="Cannot sell more than held quantity")
+            
+        new_qty = old_qty - data.quantity
+        inv.quantity = new_qty
+        inv.current_price = data.price
+        
+        if data.bank_account_id:
+            acc = await db.get(BankAccount, data.bank_account_id)
+            if acc:
+                acc.balance += (data.quantity * data.price)
+                
+    await db.commit()
+    await db.refresh(inv)
+    return APIResponse(data=InvestmentResponse.model_validate(inv).model_dump(), message=f"Investment {data.action} successful")

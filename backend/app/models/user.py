@@ -38,3 +38,5 @@ class User(Base):
     loans: Mapped[list["Loan"]] = relationship(back_populates="user", lazy="select")
     assets: Mapped[list["Asset"]] = relationship(back_populates="user", lazy="select")
     insurance_policies: Mapped[list["InsurancePolicy"]] = relationship(back_populates="user", lazy="select")
+    portfolio_snapshots: Mapped[list["PortfolioSnapshot"]] = relationship(back_populates="user", lazy="select")
+

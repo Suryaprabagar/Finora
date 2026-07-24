@@ -41,3 +41,16 @@ async def health_check():
 @app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME} API", "docs": "/api/docs"}
+
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error(f"Unhandled exception on {request.url}: {traceback.format_exc()}")
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+

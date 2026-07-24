@@ -8,18 +8,30 @@ from typing import Optional
 
 class GoalCreate(BaseModel):
     name: str
-    description: Optional[str] = None
-    category: str = "savings"
+    goal_type: str
+    strategy: str = "Savings Only"
+    risk_profile: str = "Moderate"
+    importance: str = "Medium"
+    priority_override: Optional[int] = None
     target_amount: Decimal
-    current_amount: Decimal = Decimal("0")
+    target_date: Optional[date] = None
     monthly_contribution: Decimal = Decimal("0")
-    deadline: Optional[date] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
+    notes: Optional[str] = None
+    parent_id: Optional[uuid.UUID] = None
 
 
-class GoalUpdate(GoalCreate):
-    status: Optional[str] = None
+class GoalUpdate(BaseModel):
+    name: Optional[str] = None
+    goal_type: Optional[str] = None
+    strategy: Optional[str] = None
+    risk_profile: Optional[str] = None
+    importance: Optional[str] = None
+    priority_override: Optional[int] = None
+    target_amount: Optional[Decimal] = None
+    target_date: Optional[date] = None
+    monthly_contribution: Optional[Decimal] = None
+    notes: Optional[str] = None
+    parent_id: Optional[uuid.UUID] = None
 
 
 class GoalContributionCreate(BaseModel):
@@ -41,18 +53,23 @@ class GoalContributionResponse(BaseModel):
 
 class GoalResponse(BaseModel):
     id: uuid.UUID
+    user_id: uuid.UUID
+    parent_id: Optional[uuid.UUID] = None
     name: str
-    description: Optional[str] = None
-    category: str
+    goal_type: str
+    strategy: str
+    risk_profile: str
+    importance: str
+    priority_override: Optional[int] = None
     target_amount: Decimal
-    current_amount: Decimal
+    target_date: Optional[date] = None
     monthly_contribution: Decimal
-    deadline: Optional[date] = None
-    status: str
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    progress_percentage: float = 0.0
+    notes: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
+    
+    # We omit current_amount, progress_percentage, etc from the base response
+    # because they are generated dynamically by PlanningService.
 
     class Config:
         from_attributes = True

@@ -45,7 +45,7 @@ export const budgetApi = {
 
 export const goalsApi = {
   list: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/goals', { params }),
-  getSummary: () => apiClientModule.get<APIResponse<any>>('/goals/summary'),
+  getOverview: () => apiClientModule.get<APIResponse<any>>('/goals/overview'),
   get: (id: string) => apiClientModule.get<APIResponse<any>>(`/goals/${id}`),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/goals', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/goals/${id}`, data),
@@ -71,6 +71,8 @@ export const investmentsApi = {
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/investments', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/investments/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/investments/${id}`),
+  sync: () => apiClientModule.post<APIResponse<any>>('/investments/sync'),
+  trade: (id: string, data: unknown) => apiClientModule.post<APIResponse<any>>(`/investments/${id}/trade`, data),
 }
 
 export const loansApi = {
@@ -138,4 +140,8 @@ export const expensesApi = {
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/expenses', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/expenses/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/expenses/${id}`),
+}
+
+export const analyticsApi = {
+  getDashboard: () => apiClientModule.get<APIResponse<any>>('/analytics/dashboard').then((res) => res.data),
 }

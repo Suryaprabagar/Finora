@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import {
   AreaChart as RechartsAreaChart,
   Area,
@@ -20,7 +22,7 @@ interface AreaChartProps {
   formatTooltip?: (v: number) => string
 }
 
-export function AreaChart({
+export const AreaChart = React.memo(function AreaChart({
   data,
   xKey,
   areas,
@@ -89,4 +91,4 @@ export function AreaChart({
       </ResponsiveContainer>
     </div>
   )
-}
+})

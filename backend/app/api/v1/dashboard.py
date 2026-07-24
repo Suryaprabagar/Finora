@@ -252,26 +252,24 @@ async def get_dashboard(
         }
 
     # --- Goals Summary (top 5 active) ---
-    goals_result = await db.execute(
-        select(Goal)
-        .where(Goal.user_id == user_id, Goal.status == "active", Goal.deleted_at.is_(None))
-        .order_by(Goal.created_at.desc())
-        .limit(5)
-    )
-    goals_db = goals_result.scalars().all()
+    from app.core.planning.planning_service import PlanningService
+    planning_overview = await PlanningService.get_user_planning_overview(db, user_id)
+    
+    # Take the top 5 by priority_score
+    top_objectives = sorted(planning_overview["objectives"], key=lambda x: x["priority_score"], reverse=True)[:5]
+    
     goals_summary = [
         {
-            "id": str(g.id),
-            "name": g.name,
-            "category": g.category,
-            "target_amount": float(g.target_amount),
-            "current_amount": float(g.current_amount),
-            "progress_percentage": round(float(g.current_amount) / float(g.target_amount) * 100, 1)
-                if float(g.target_amount) > 0 else 0,
-            "deadline": g.deadline.isoformat() if g.deadline else None,
-            "color": g.color,
+            "id": obj["id"],
+            "name": obj["name"],
+            "category": obj["goal_type"],
+            "target_amount": obj["target_amount"],
+            "current_amount": obj["current_funding"],
+            "progress_percentage": obj["progress_percentage"],
+            "deadline": obj["target_date"],
+            "color": "#1f1b18", # default color
         }
-        for g in goals_db
+        for obj in top_objectives
     ]
 
     return APIResponse(data={
