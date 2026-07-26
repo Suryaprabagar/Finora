@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.bank_account import BankAccount
+from app.models.credit_card import CreditCard
 from app.models.category import Category
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse, Pagination
@@ -101,6 +102,14 @@ async def create_transaction(
                 bank_account.balance += transaction.amount
             elif transaction.type == "expense":
                 bank_account.balance -= transaction.amount
+                
+    if data.credit_card_id:
+        credit_card = await db.get(CreditCard, data.credit_card_id)
+        if credit_card and credit_card.user_id == current_user.id:
+            if transaction.type == "expense":
+                credit_card.outstanding_balance += transaction.amount
+            elif transaction.type == "income":
+                credit_card.outstanding_balance = max(0, credit_card.outstanding_balance - transaction.amount)
     
     await db.commit()
     await db.refresh(transaction)
@@ -108,7 +117,7 @@ async def create_transaction(
     # Reload with relationships
     result = await db.execute(
         select(Transaction)
-        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account))
+        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account), selectinload(Transaction.credit_card))
         .where(Transaction.id == transaction.id)
     )
     transaction = result.scalar_one()
@@ -152,6 +161,14 @@ async def update_transaction(
                 old_acc.balance -= transaction.amount
             elif transaction.type == "expense":
                 old_acc.balance += transaction.amount
+                
+    if transaction.credit_card_id:
+        old_cc = await db.get(CreditCard, transaction.credit_card_id)
+        if old_cc:
+            if transaction.type == "expense":
+                old_cc.outstanding_balance = max(0, old_cc.outstanding_balance - transaction.amount)
+            elif transaction.type == "income":
+                old_cc.outstanding_balance += transaction.amount
 
     update_data = data.model_dump(exclude_unset=True)
     for k, v in update_data.items():
@@ -165,6 +182,14 @@ async def update_transaction(
                 new_acc.balance += transaction.amount
             elif transaction.type == "expense":
                 new_acc.balance -= transaction.amount
+                
+    if transaction.credit_card_id:
+        new_cc = await db.get(CreditCard, transaction.credit_card_id)
+        if new_cc:
+            if transaction.type == "expense":
+                new_cc.outstanding_balance += transaction.amount
+            elif transaction.type == "income":
+                new_cc.outstanding_balance = max(0, new_cc.outstanding_balance - transaction.amount)
 
     await db.commit()
     await db.refresh(transaction)
@@ -172,7 +197,7 @@ async def update_transaction(
     # Reload with relationships
     result = await db.execute(
         select(Transaction)
-        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account))
+        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account), selectinload(Transaction.credit_card))
         .where(Transaction.id == transaction.id)
     )
     transaction = result.scalar_one()
@@ -200,6 +225,14 @@ async def delete_transaction(
                 acc.balance -= transaction.amount
             elif transaction.type == "expense":
                 acc.balance += transaction.amount
+                
+    if transaction.credit_card_id:
+        cc = await db.get(CreditCard, transaction.credit_card_id)
+        if cc:
+            if transaction.type == "expense":
+                cc.outstanding_balance = max(0, cc.outstanding_balance - transaction.amount)
+            elif transaction.type == "income":
+                cc.outstanding_balance += transaction.amount
 
     transaction.deleted_at = datetime.now(timezone.utc)
     await db.commit()

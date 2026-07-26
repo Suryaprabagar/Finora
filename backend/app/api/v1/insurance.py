@@ -17,7 +17,7 @@ router = APIRouter()
 async def get_insurance_policies(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(InsurancePolicy)
-        .where(InsurancePolicy.user_id == current_user.id, InsurancePolicy.is_active.is_(True), InsurancePolicy.deleted_at.is_(None))
+        .where(InsurancePolicy.user_id == current_user.id, InsurancePolicy.status == "active", InsurancePolicy.deleted_at.is_(None))
     )
     policies = result.scalars().all()
     return APIResponse(data=[InsurancePolicyResponse.model_validate(p).model_dump() for p in policies])
@@ -27,11 +27,11 @@ async def get_insurance_summary(db: AsyncSession = Depends(get_db), current_user
     result = await db.execute(
         select(
             func.coalesce(func.sum(InsurancePolicy.coverage_amount), 0).label("total_coverage"),
-            func.coalesce(func.sum(InsurancePolicy.premium_amount), 0).label("annual_premium"),
+            func.coalesce(func.sum(InsurancePolicy.annual_premium), 0).label("annual_premium"),
             func.count(InsurancePolicy.id).label("active_count"),
-            func.min(InsurancePolicy.end_date).label("next_renewal")
+            func.min(InsurancePolicy.renewal_date).label("next_renewal")
         )
-        .where(InsurancePolicy.user_id == current_user.id, InsurancePolicy.is_active.is_(True), InsurancePolicy.deleted_at.is_(None))
+        .where(InsurancePolicy.user_id == current_user.id, InsurancePolicy.status == "active", InsurancePolicy.deleted_at.is_(None))
     )
     totals = result.one()
     

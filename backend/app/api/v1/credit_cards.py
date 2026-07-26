@@ -25,8 +25,8 @@ async def get_credit_cards(db: AsyncSession = Depends(get_db), current_user: Use
     data = []
     for c in cards:
         c_data = CreditCardResponse.model_validate(c).model_dump()
-        c_data["utilization_percent"] = (float(c.outstanding_balance) / float(c.limit) * 100) if float(c.limit) > 0 else 0
-        c_data["available_credit"] = float(c.limit) - float(c.outstanding_balance)
+        c_data["utilization_percent"] = (float(c.outstanding_balance) / float(c.credit_limit) * 100) if float(c.credit_limit) > 0 else 0
+        c_data["available_credit"] = float(c.credit_limit) - float(c.outstanding_balance)
         data.append(c_data)
         
     return APIResponse(data=data)

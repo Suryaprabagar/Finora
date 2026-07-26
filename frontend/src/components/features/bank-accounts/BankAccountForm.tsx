@@ -13,7 +13,7 @@ import { useEffect } from 'react'
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   bank_name: z.string().optional(),
-  account_type: z.enum(['checking', 'savings', 'credit', 'investment', 'other']),
+  account_type: z.enum(['checking', 'savings', 'credit', 'investment', 'cash', 'other']),
   account_number: z.string().optional(),
   balance: z.coerce.number(),
   currency: z.string().default('INR'),
@@ -29,7 +29,7 @@ interface BankAccountFormProps {
 
 export function BankAccountForm({ initialData, onSuccess, onCancel }: BankAccountFormProps) {
   const queryClient = useQueryClient()
-  const isEditing = !!initialData
+  const isEditing = !!initialData?.id
 
   const {
     register,
@@ -74,7 +74,12 @@ export function BankAccountForm({ initialData, onSuccess, onCancel }: BankAccoun
       onSuccess?.()
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'An error occurred')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0].msg || 'Validation Error')
+      } else {
+        toast.error(detail || 'An error occurred')
+      }
     },
   })
 
@@ -106,6 +111,7 @@ export function BankAccountForm({ initialData, onSuccess, onCancel }: BankAccoun
             <option value="checking">Checking</option>
             <option value="savings">Savings</option>
             <option value="investment">Investment</option>
+            <option value="cash">Physical Cash</option>
             <option value="other">Other</option>
           </select>
           {errors.account_type && <p className="text-sm text-error">{errors.account_type.message}</p>}

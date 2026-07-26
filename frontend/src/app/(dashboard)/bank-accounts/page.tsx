@@ -44,7 +44,7 @@ export default function BankAccountsPage() {
   })
 
   const accounts = res?.data || []
-  const totalBalance = accounts.reduce((acc: number, curr: any) => acc + curr.balance, 0)
+  const totalBalance = accounts.reduce((acc: number, curr: any) => acc + Number(curr.balance || 0), 0)
 
   const handleAdd = () => {
     setEditingAccount(null)
@@ -59,6 +59,21 @@ export default function BankAccountsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     closeTimerRef.current = setTimeout(() => setEditingAccount(null), 200) // Clear after animation
+  }
+
+  const handleEditCash = () => {
+    const cashAccount = accounts.find((a: any) => a.account_type === 'cash')
+    if (cashAccount) {
+      handleEdit(cashAccount)
+    } else {
+      setEditingAccount({
+        name: 'Physical Cash',
+        account_type: 'cash',
+        balance: 0,
+        currency: 'INR'
+      })
+      setIsModalOpen(true)
+    }
   }
 
   return (
@@ -80,6 +95,15 @@ export default function BankAccountsPage() {
           value={formatCurrency(totalBalance)}
           loading={isLoading}
           icon="account_balance"
+          action={
+            <button 
+              onClick={handleEditCash} 
+              className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">payments</span>
+              Add/Edit Cash
+            </button>
+          }
         />
       </div>
 

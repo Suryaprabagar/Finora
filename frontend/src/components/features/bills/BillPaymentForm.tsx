@@ -47,7 +47,7 @@ export function BillPaymentForm({ bill, onSuccess, onCancel }: BillPaymentFormPr
   })
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => billsApi.pay(bill.id, data),
+    mutationFn: (data: FormData) => billsApi.pay(bill.id, { ...data, source_type: bill.source_type || 'bill' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bills'] })
       queryClient.invalidateQueries({ queryKey: ['bills-summary'] })

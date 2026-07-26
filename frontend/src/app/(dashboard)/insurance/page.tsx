@@ -52,7 +52,7 @@ export default function InsurancePage() {
     }
   })
 
-  const summary = summaryRes?.data || { total_coverage: 0, total_premium: 0, active_count: 0 }
+  const summary = summaryRes?.data || { total_coverage: 0, annual_premium: 0, active_count: 0 }
   const policies = listRes?.data || []
 
   const handleAdd = () => {
@@ -94,7 +94,8 @@ export default function InsurancePage() {
         />
         <StatCard
           title="Total Annual Premium"
-          value={formatCurrency(summary.total_premium)}
+          value={formatCurrency(summary.annual_premium)}
+          subtitle="Per Year"
           loading={isSummaryLoading}
           icon="payments"
         />

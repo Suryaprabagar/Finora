@@ -9,6 +9,7 @@ from typing import Optional
 class CreditCardCreate(BaseModel):
     name: str
     bank_name: str
+    bank_account_id: Optional[uuid.UUID] = None
     card_number: Optional[str] = None
     credit_limit: Decimal
     outstanding_balance: Decimal = Decimal("0")
@@ -27,6 +28,7 @@ class CreditCardResponse(BaseModel):
     id: uuid.UUID
     name: str
     bank_name: str
+    bank_account_id: Optional[uuid.UUID] = None
     card_number: Optional[str] = None
     credit_limit: Decimal
     outstanding_balance: Decimal

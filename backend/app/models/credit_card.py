@@ -16,6 +16,7 @@ class CreditCard(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     bank_name: Mapped[str] = mapped_column(String(100), nullable=False)
     card_number: Mapped[str | None] = mapped_column(String(4), nullable=True)  # last 4 digits
+    bank_account_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("bank_accounts.id", ondelete="SET NULL"), nullable=True)
     credit_limit: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
     outstanding_balance: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=Decimal("0"), nullable=False)
     billing_cycle_day: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

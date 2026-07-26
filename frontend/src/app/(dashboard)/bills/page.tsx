@@ -41,7 +41,7 @@ export default function BillsPage() {
   
   const { data: upcomingRes, isLoading: isUpcomingLoading } = useQuery({
     queryKey: ['bills-upcoming'],
-    queryFn: () => billsApi.upcoming().then(r => r.data),
+    queryFn: () => billsApi.getUpcoming().then(r => r.data),
   })
 
   const deleteMutation = useMutation({
@@ -116,7 +116,7 @@ export default function BillsPage() {
       </div>
 
       <div className="finora-card p-6 mb-8">
-        <h3 className="font-display font-bold text-lg mb-6 text-[#1f1b18]">Upcoming Payments (Next 30 Days)</h3>
+        <h3 className="font-display font-bold text-lg mb-6 text-[#1f1b18]">Upcoming Payments</h3>
         {isUpcomingLoading ? (
           <div className="space-y-4">
             {[1, 2].map(i => (
@@ -165,7 +165,7 @@ export default function BillsPage() {
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-on-surface-variant">No upcoming payments in the next 30 days.</p>
+            <p className="text-on-surface-variant">No upcoming payments.</p>
           </div>
         )}
       </div>

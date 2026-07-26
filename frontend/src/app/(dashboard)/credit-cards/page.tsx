@@ -46,8 +46,8 @@ export default function CreditCardsPage() {
   })
 
   const cards = res?.data || []
-  const totalOutstanding = cards.reduce((acc: number, curr: any) => acc + curr.outstanding_balance, 0)
-  const totalLimit = cards.reduce((acc: number, curr: any) => acc + curr.credit_limit, 0)
+  const totalOutstanding = cards.reduce((acc: number, curr: any) => acc + Number(curr.outstanding_balance || 0), 0)
+  const totalLimit = cards.reduce((acc: number, curr: any) => acc + Number(curr.credit_limit || 0), 0)
 
   const handleAdd = () => {
     setEditingCard(null)
