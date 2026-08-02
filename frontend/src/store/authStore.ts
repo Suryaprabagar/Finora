@@ -21,12 +21,18 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
 
       setAuth: (user, accessToken, refreshToken) => {
-        // Also store in localStorage for the axios interceptor
+        // BUG-020 note: Tokens are stored in BOTH Zustand persist AND raw localStorage keys.
+        // This is intentional: Zustand persist writes to 'finora-auth' (the whole state),
+        // while the Axios interceptor reads from 'finora_access_token'/'finora_refresh_token' directly.
+        // Both must be kept in sync, which they are here and in logout().
         if (typeof window !== 'undefined') {
           localStorage.setItem('finora_access_token', accessToken)
           localStorage.setItem('finora_refresh_token', refreshToken)
-          // Set cookie for middleware
-          document.cookie = `finora_token=${accessToken}; path=/; max-age=${60 * 60}; SameSite=Lax`
+          // BUG-012 fix: use ACCESS_TOKEN_EXPIRE_MINUTES from env instead of hardcoded 3600.
+          // Falls back to 60 minutes (same as backend default) if not set.
+          const expiresMinutes = parseInt(process.env.NEXT_PUBLIC_ACCESS_TOKEN_MINUTES || '60', 10)
+          const expiresSeconds = expiresMinutes * 60
+          document.cookie = `finora_token=${accessToken}; path=/; max-age=${expiresSeconds}; SameSite=Lax`
         }
         set({ user, isAuthenticated: true, accessToken, refreshToken })
       },

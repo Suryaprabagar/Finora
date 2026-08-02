@@ -23,8 +23,11 @@ def compute_next_due_date(due_day: int, from_date: date) -> date:
             else:
                 return date(from_date.year, from_date.month + 1, due_day)
     except ValueError:
-        # handle edge cases like Feb 29
-        return date(from_date.year, from_date.month + 1 if from_date.month < 12 else 1, 28)
+        # BUG-007 fix: handle edge cases like Feb 29, 30, 31 by clamping to 28
+        # Also fix the year bug: December → January of the NEXT year
+        next_month = from_date.month + 1 if from_date.month < 12 else 1
+        next_year = from_date.year if from_date.month < 12 else from_date.year + 1
+        return date(next_year, next_month, 28)
 
 @router.get("/")
 async def get_bills(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -40,19 +43,21 @@ async def get_bills(db: AsyncSession = Depends(get_db), current_user: User = Dep
 async def get_upcoming_bills(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.models.loan import Loan
     from app.models.credit_card import CreditCard
-    from app.models.insurance import InsurancePolicy
-    from app.models.insurance import InsurancePolicy
+    from app.models.insurance import InsurancePolicy  # BUG-008 fix: removed duplicate import
     from app.models.goal import Goal
 
     today = date.today()
-    
-    # 1. Bills
+    next_30 = today + timedelta(days=30)  # BUG-027 fix: define the 30-day window
+
+    # 1. Bills — BUG-027 fix: filter to bills due within the next 30 days
     b_result = await db.execute(
         select(Bill)
         .where(
             Bill.user_id == current_user.id,
             Bill.status == "active",
-            Bill.deleted_at.is_(None)
+            Bill.deleted_at.is_(None),
+            Bill.next_due_date.is_not(None),
+            Bill.next_due_date <= next_30,
         )
     )
     bills = b_result.scalars().all()
@@ -307,7 +312,11 @@ async def pay_bill(id: uuid.UUID, data: BillPaymentCreate, db: AsyncSession = De
             next_month_start = date(bill.next_due_date.year, bill.next_due_date.month, 1) + timedelta(days=32)
             bill.next_due_date = compute_next_due_date(bill.due_day, next_month_start)
         else:
-            bill.next_due_date = compute_next_due_date(bill.due_day, date.today() + timedelta(days=15))
+            # BUG-023 fix: for early payments, advance from the current due date's month
+            # instead of using an arbitrary +15 days offset from today
+            current_due = bill.next_due_date or date.today()
+            next_month_start = date(current_due.year, current_due.month, 1) + timedelta(days=32)
+            bill.next_due_date = compute_next_due_date(bill.due_day, next_month_start)
             
     elif source_type == 'credit_card':
         result = await db.execute(
@@ -331,7 +340,8 @@ async def pay_bill(id: uuid.UUID, data: BillPaymentCreate, db: AsyncSession = De
             
         bill_name = f"EMI: {loan.name}"
         category_name = "Loan"
-        loan.outstanding_amount = max(Decimal("0"), loan.outstanding_amount - data.amount_paid)
+        # BUG-009 fix: the Loan model field is `outstanding_balance`, not `outstanding_amount`
+        loan.outstanding_balance = max(Decimal("0"), loan.outstanding_balance - data.amount_paid)
         
     elif source_type == 'insurance':
         result = await db.execute(

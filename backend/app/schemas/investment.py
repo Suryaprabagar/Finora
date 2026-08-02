@@ -16,6 +16,8 @@ class InvestmentCreate(BaseModel):
     purchase_date: date
     maturity_date: Optional[date] = None
     interest_rate: Optional[Decimal] = None
+    coupon_frequency: Optional[str] = None
+    next_coupon_date: Optional[date] = None
     broker: Optional[str] = None
     folio_number: Optional[str] = None
     notes: Optional[str] = None
@@ -36,6 +38,8 @@ class InvestmentResponse(BaseModel):
     purchase_date: date
     maturity_date: Optional[date] = None
     interest_rate: Optional[Decimal] = None
+    coupon_frequency: Optional[str] = None
+    next_coupon_date: Optional[date] = None
     broker: Optional[str] = None
     folio_number: Optional[str] = None
     notes: Optional[str] = None

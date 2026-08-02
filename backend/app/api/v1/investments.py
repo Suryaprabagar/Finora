@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.investment import Investment
 from app.models.bank_account import BankAccount
+from app.models.transaction import Transaction
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
 from app.schemas.investment import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentTrade
@@ -88,6 +89,47 @@ async def create_investment(data: InvestmentCreate, db: AsyncSession = Depends(g
         if acc:
             acc.balance -= (data.purchase_price * data.quantity)
             
+    # Bond automated transactions logic
+    if data.type.lower() == "bonds" and data.bank_account_id:
+        # Recurring income for frequent pay
+        if data.coupon_frequency and data.next_coupon_date:
+            coupon_amount = 0
+            if data.interest_rate:
+                # Basic estimated coupon logic: Total Value * Rate / Freq
+                principal = float(data.purchase_price * data.quantity)
+                rate = float(data.interest_rate) / 100.0
+                freq_div = 1
+                if data.coupon_frequency.lower() == 'monthly': freq_div = 12
+                elif data.coupon_frequency.lower() == 'quarterly': freq_div = 4
+                elif data.coupon_frequency.lower() in ('semi-annually', 'half-yearly'): freq_div = 2
+                coupon_amount = (principal * rate) / freq_div
+            
+            recurring_inc = Transaction(
+                user_id=current_user.id,
+                bank_account_id=data.bank_account_id,
+                type="income",
+                amount=coupon_amount,
+                date=data.next_coupon_date,
+                description=f"Bond Coupon - {data.name}",
+                is_recurring=True,
+                recurring_interval=data.coupon_frequency.lower()
+            )
+            db.add(recurring_inc)
+            
+        # One-time principal payout at maturity
+        if data.maturity_date:
+            principal_amount = data.purchase_price * data.quantity
+            maturity_inc = Transaction(
+                user_id=current_user.id,
+                bank_account_id=data.bank_account_id,
+                type="income",
+                amount=principal_amount,
+                date=data.maturity_date,
+                description=f"Bond Maturity Principal - {data.name}",
+                is_recurring=False
+            )
+            db.add(maturity_inc)
+            
     await db.commit()
     await db.refresh(inv)
     return APIResponse(data=InvestmentResponse.model_validate(inv).model_dump(), message="Investment created")
@@ -161,7 +203,8 @@ async def delete_investment(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
     if inv.bank_account_id:
         acc = await db.get(BankAccount, inv.bank_account_id)
         if acc:
-            acc.balance += (inv.current_price * inv.quantity)
+            # BUG-011 fix: refund the original purchase cost, not the current market value
+            acc.balance += (inv.purchase_price * inv.quantity)
             
     inv.deleted_at = datetime.now(timezone.utc)
     await db.commit()

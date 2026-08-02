@@ -29,7 +29,7 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
       originalRequest._retry = true
 
       try {
@@ -52,6 +52,8 @@ apiClient.interceptors.response.use(
         // Refresh failed — clear auth and redirect
         localStorage.removeItem('finora_access_token')
         localStorage.removeItem('finora_refresh_token')
+        // Also clear the cookie used by middleware to allow redirecting to login
+        document.cookie = 'finora_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
         if (typeof window !== 'undefined') {
           window.location.href = '/login'
         }

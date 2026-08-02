@@ -22,7 +22,9 @@ class Investment(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(15, 4), default=Decimal("1"), nullable=False)
     purchase_date: Mapped[date] = mapped_column(Date, nullable=False)
     maturity_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    interest_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)  # for FD/PPF/NPS
+    interest_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)  # for FD/PPF/NPS/Bonds
+    coupon_frequency: Mapped[str | None] = mapped_column(String(20), nullable=True)  # monthly, quarterly, semi-annually, annually
+    next_coupon_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     broker: Mapped[str | None] = mapped_column(String(100), nullable=True)
     folio_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

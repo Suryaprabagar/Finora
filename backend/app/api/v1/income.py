@@ -11,7 +11,7 @@ from app.dependencies import get_current_user
 from app.schemas.common import APIResponse, Pagination
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 
 router = APIRouter()
@@ -66,16 +66,35 @@ async def get_income_summary(db: AsyncSession = Depends(get_db), current_user: U
         .where(Transaction.user_id == current_user.id, Transaction.type == "income", Transaction.date >= current_month_start, Transaction.deleted_at.is_(None))
     )
     monthly_total = float(monthly_r.scalar() or 0)
-    
+
     annual_r = await db.execute(
         select(func.coalesce(func.sum(Transaction.amount), 0))
         .where(Transaction.user_id == current_user.id, Transaction.type == "income", Transaction.date >= current_year_start, Transaction.deleted_at.is_(None))
     )
     annual_total = float(annual_r.scalar() or 0)
-    
-    # Mock recurring/pending count for now
-    recurring_count = 0
-    pending_count = 0
+
+    # BUG-016 fix: compute actual counts instead of hardcoding 0
+    recurring_r = await db.execute(
+        select(func.count(Transaction.id))
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "income",
+            Transaction.is_recurring.is_(True),
+            Transaction.deleted_at.is_(None),
+        )
+    )
+    recurring_count = recurring_r.scalar() or 0
+
+    pending_r = await db.execute(
+        select(func.count(Transaction.id))
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "income",
+            Transaction.status == "pending",
+            Transaction.deleted_at.is_(None),
+        )
+    )
+    pending_count = pending_r.scalar() or 0
     
     largest_r = await db.execute(
         select(Transaction)
@@ -123,6 +142,45 @@ async def get_income_by_category(db: AsyncSession = Depends(get_db), current_use
         })
         
     return APIResponse(data=data)
+
+@router.get("/trends")
+async def get_income_trends(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    today = date.today()
+    trends = []
+    
+    prev_amount = 0
+    # Return last 12 months for trends
+    for i in range(11, -1, -1):
+        month_offset = today.month - i
+        year_offset = today.year
+        while month_offset <= 0:
+            month_offset += 12
+            year_offset -= 1
+            
+        m_start = date(year_offset, month_offset, 1)
+        if month_offset == 12:
+            m_end = date(year_offset + 1, 1, 1)
+        else:
+            m_end = date(year_offset, month_offset + 1, 1)
+            
+        inc_r = await db.execute(
+            select(func.coalesce(func.sum(Transaction.amount), 0))
+            .where(Transaction.user_id == current_user.id, Transaction.type == "income", Transaction.date >= m_start, Transaction.date < m_end, Transaction.deleted_at.is_(None))
+        )
+        amount = float(inc_r.scalar() or 0)
+        
+        vs_prev = ((amount - prev_amount) / prev_amount * 100) if prev_amount > 0 else 0
+        
+        trends.append({
+            "month": m_start.strftime("%b"),
+            "year": m_start.strftime("%Y"),
+            "amount": amount,
+            "vs_prev_month_pct": vs_prev
+        })
+        
+        prev_amount = amount
+        
+    return APIResponse(data=trends)
 
 @router.post("/", status_code=201)
 async def create_income(data: TransactionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

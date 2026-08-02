@@ -45,6 +45,7 @@ export const budgetApi = {
 
 export const goalsApi = {
   list: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/goals', { params }),
+  // /goals/overview is a valid backend endpoint (goals/router.py GET /overview)
   getOverview: () => apiClientModule.get<APIResponse<any>>('/goals/overview'),
   get: (id: string) => apiClientModule.get<APIResponse<any>>(`/goals/${id}`),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/goals', data),
@@ -119,6 +120,10 @@ export const settingsApi = {
   updateCategory: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/settings/categories/${id}`, data),
   deleteCategory: (id: string) => apiClientModule.delete<APIResponse<null>>(`/settings/categories/${id}`),
   resetDemo: () => apiClientModule.post<APIResponse<null>>('/settings/reset-demo'),
+  // BUG-019 note: exportData() correctly uses res.data directly because the backend /settings/export
+  // intentionally returns a raw dict (not wrapped in APIResponse) to avoid Pydantic serialization limits.
+  exportData: () => apiClientModule.post('/settings/export').then(res => res.data),
+  restoreData: (data: unknown) => apiClientModule.post('/settings/restore', data),
   updateProfile: (data: unknown) => apiClientModule.put<APIResponse<any>>('/users/me', data),
   changePassword: (data: unknown) => apiClientModule.post<APIResponse<null>>('/users/me/change-password', data),
 }
@@ -127,6 +132,7 @@ export const incomeApi = {
   list: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/income', { params }),
   getSummary: () => apiClientModule.get<APIResponse<any>>('/income/summary'),
   getByCategory: () => apiClientModule.get<APIResponse<any[]>>('/income/by-category'),
+  getTrends: () => apiClientModule.get<APIResponse<any[]>>('/income/trends'),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/income', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/income/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/income/${id}`),
@@ -144,4 +150,5 @@ export const expensesApi = {
 
 export const analyticsApi = {
   getDashboard: () => apiClientModule.get<APIResponse<any>>('/analytics/dashboard').then((res) => res.data),
+  getReports: () => apiClientModule.get<APIResponse<any>>('/analytics/reports').then((res) => res.data),
 }

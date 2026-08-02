@@ -12,18 +12,20 @@ import { toast } from 'sonner'
 const schema = z.object({
   amount: z.coerce.number().positive('Contribution must be positive'),
   date: z.string().min(1, 'Date is required'),
-  description: z.string().optional(),
+  // Backend schema field is `notes`, not `description`
+  notes: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
 
 interface GoalContributionFormProps {
-  goal: any
+  // Accept goalId (string) so the parent doesn't need to pass the full goal object
+  goalId: string
   onSuccess?: () => void
   onCancel?: () => void
 }
 
-export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContributionFormProps) {
+export function GoalContributionForm({ goalId, onSuccess, onCancel }: GoalContributionFormProps) {
   const queryClient = useQueryClient()
 
   const {
@@ -35,15 +37,15 @@ export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContribu
     defaultValues: {
       amount: 0,
       date: new Date().toISOString().split('T')[0],
-      description: 'Goal savings contribution',
+      notes: '',
     },
   })
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) => goalsApi.contribute(goal.id, data),
+    mutationFn: (data: FormData) => goalsApi.contribute(goalId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] })
-      queryClient.invalidateQueries({ queryKey: ['goals-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['financial-overview'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('Contribution added successfully')
       onSuccess?.()
@@ -59,15 +61,10 @@ export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContribu
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div>
-        <p className="text-sm font-medium text-[#1f1b18]">Goal: {goal.name}</p>
-        <p className="text-xs text-on-surface-variant">Remaining target: {goal.target_amount - goal.current_amount}</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="amount">Contribution Amount *</Label>
-          <Input id="amount" type="number" step="0.01" {...register('amount')} />
+          <Label htmlFor="amount">Amount *</Label>
+          <Input id="amount" type="number" step="0.01" placeholder="5000" {...register('amount')} />
           {errors.amount && <p className="text-sm text-error">{errors.amount.message}</p>}
         </div>
         <div className="space-y-2">
@@ -78,8 +75,8 @@ export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContribu
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description / Source</Label>
-        <Input id="description" {...register('description')} />
+        <Label htmlFor="notes">Notes (optional)</Label>
+        <Input id="notes" placeholder="e.g. Monthly savings transfer" {...register('notes')} />
       </div>
 
       <div className="pt-4 flex justify-end gap-3">
@@ -89,7 +86,7 @@ export function GoalContributionForm({ goal, onSuccess, onCancel }: GoalContribu
           </button>
         )}
         <button type="submit" className="btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Adding...' : 'Add Contribution'}
+          {isSubmitting ? 'Saving…' : 'Add Contribution'}
         </button>
       </div>
     </form>

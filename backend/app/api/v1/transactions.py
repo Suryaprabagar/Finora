@@ -66,8 +66,10 @@ async def get_transactions(
             )
         )
 
-    # Sort
-    sort_col = getattr(Transaction, sort_by, Transaction.date)
+    # BUG-006 fix: only allow known safe column names to prevent ORM attribute injection
+    ALLOWED_SORT_FIELDS = {"date", "amount", "description", "created_at", "merchant", "status", "type"}
+    safe_sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "date"
+    sort_col = getattr(Transaction, safe_sort_by)
     if sort_order == "desc":
         query = query.order_by(desc(sort_col), desc(Transaction.created_at))
     else:

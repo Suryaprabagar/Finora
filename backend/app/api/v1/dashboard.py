@@ -224,17 +224,21 @@ async def get_dashboard(
     if budget:
         items_with_spent = []
         for item in budget.items:
-            spent_r = await db.execute(
-                select(func.coalesce(func.sum(Transaction.amount), 0))
-                .where(
-                    Transaction.user_id == user_id,
-                    Transaction.category_id == item.category_id if item.category_id else False,
-                    Transaction.type == "expense",
-                    Transaction.date >= current_month_start,
-                    Transaction.deleted_at.is_(None),
+            # BUG-010 fix: Python ternary can't be used as a SQLAlchemy expression.
+            # Guard with an if-block and skip the query when category_id is None.
+            spent = 0.0
+            if item.category_id:
+                spent_r = await db.execute(
+                    select(func.coalesce(func.sum(Transaction.amount), 0))
+                    .where(
+                        Transaction.user_id == user_id,
+                        Transaction.category_id == item.category_id,
+                        Transaction.type == "expense",
+                        Transaction.date >= current_month_start,
+                        Transaction.deleted_at.is_(None),
+                    )
                 )
-            )
-            spent = float(spent_r.scalar() or 0)
+                spent = float(spent_r.scalar() or 0)
             pct = round(spent / float(item.allocated_amount) * 100, 1) if float(item.allocated_amount) > 0 else 0
             items_with_spent.append({
                 "id": str(item.id),

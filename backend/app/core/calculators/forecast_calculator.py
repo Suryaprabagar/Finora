@@ -1,6 +1,12 @@
 import datetime
+import math
 from decimal import Decimal
 from dateutil.relativedelta import relativedelta
+
+# Maximum sensible forecast horizon: 100 years (1200 months).
+# Beyond this, a goal is considered "not achievable in a reasonable timeframe"
+# and None is returned instead of crashing with a year-out-of-range ValueError.
+MAX_FORECAST_MONTHS = 1200
 
 
 class ForecastCalculator:
@@ -8,14 +14,15 @@ class ForecastCalculator:
 
     @staticmethod
     def forecast_completion_date(
-        current_funding: Decimal, 
-        target_amount: Decimal, 
+        current_funding: Decimal,
+        target_amount: Decimal,
         monthly_contribution: Decimal,
         current_date: datetime.date | None = None
     ) -> datetime.date | None:
         """
         Estimates the completion date given current funding and monthly contributions.
-        Does not account for compound interest in this simple version, but can be extended.
+        Returns None when the goal is already reached, contribution is non-positive,
+        or the forecast horizon exceeds MAX_FORECAST_MONTHS (100 years).
         """
         if not current_date:
             current_date = datetime.date.today()
@@ -28,16 +35,24 @@ class ForecastCalculator:
             return None
 
         remaining_amount = target_amount - current_funding
-        
+
         # Calculate months needed
         months_needed = float(remaining_amount / monthly_contribution)
-        
+
+        # Guard against absurdly large values (e.g. near-zero contributions)
+        # that would produce years beyond Python's date range (max year = 9999).
+        if months_needed > MAX_FORECAST_MONTHS:
+            return None  # Not achievable within a reasonable timeframe
+
         # Ceil to the next full month
-        import math
         months_needed_ceil = math.ceil(months_needed)
-        
-        estimated_date = current_date + relativedelta(months=+months_needed_ceil)
-        return estimated_date
+
+        try:
+            estimated_date = current_date + relativedelta(months=+months_needed_ceil)
+            return estimated_date
+        except (ValueError, OverflowError):
+            # Defensive fallback: should not occur after the cap above, but just in case
+            return None
 
     @staticmethod
     def calculate_required_sip(
@@ -61,9 +76,12 @@ class ForecastCalculator:
         if target_date <= current_date:
             return target_amount - current_funding
 
-        # Calculate months remaining
+        # Calculate months remaining (include partial months for accuracy)
         delta = relativedelta(target_date, current_date)
         months = delta.years * 12 + delta.months
+        # Add partial month if there are remaining days beyond the full months
+        if delta.days > 0:
+            months += 1
         if months <= 0:
             return target_amount - current_funding
 

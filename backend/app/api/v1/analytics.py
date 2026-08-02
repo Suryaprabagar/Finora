@@ -24,3 +24,19 @@ async def get_dashboard_analytics(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate analytics dashboard: {str(e)}"
         )
+
+@router.get("/reports", response_model=Dict[str, Any])
+async def get_reports_analytics(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieves the complete reports analytics payload for the current user.
+    """
+    try:
+        return await AnalyticsService.get_reports_analytics(db, current_user.id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate reports analytics: {str(e)}"
+        )
