@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_credit_cards(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(CreditCard)
@@ -31,7 +31,7 @@ async def get_credit_cards(db: AsyncSession = Depends(get_db), current_user: Use
         
     return APIResponse(data=data)
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_credit_card(data: CreditCardCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     card = CreditCard(**data.model_dump(), user_id=current_user.id)
     db.add(card)

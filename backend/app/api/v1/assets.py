@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_assets(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(Asset)
@@ -67,7 +67,7 @@ async def get_assets_summary(db: AsyncSession = Depends(get_db), current_user: U
         "by_type": by_type_list
     })
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_asset(data: AssetCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     asset = Asset(**data.model_dump(), user_id=current_user.id)
     db.add(asset)

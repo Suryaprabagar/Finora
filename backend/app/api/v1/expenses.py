@@ -16,7 +16,7 @@ from typing import Optional
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_expenses(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -190,7 +190,7 @@ async def get_expenses_trends(db: AsyncSession = Depends(get_db), current_user: 
         
     return APIResponse(data=trends)
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_expense(data: TransactionCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     dump = data.model_dump()
     dump["type"] = "expense"

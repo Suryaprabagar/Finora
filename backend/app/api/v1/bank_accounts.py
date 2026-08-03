@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_bank_accounts(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(BankAccount)
@@ -25,7 +25,7 @@ async def get_bank_accounts(db: AsyncSession = Depends(get_db), current_user: Us
     accounts = result.scalars().all()
     return APIResponse(data=[BankAccountResponse.model_validate(a).model_dump() for a in accounts])
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_bank_account(
     data: BankAccountCreate, 
     db: AsyncSession = Depends(get_db), 

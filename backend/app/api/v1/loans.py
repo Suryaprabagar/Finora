@@ -15,7 +15,7 @@ from decimal import Decimal
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_loans(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(Loan).where(Loan.user_id == current_user.id, Loan.is_active.is_(True), Loan.deleted_at.is_(None))
@@ -106,7 +106,7 @@ async def get_loan_schedule(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
         
     return APIResponse(data=schedule)
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_loan(data: LoanCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     loan = Loan(**data.model_dump(), user_id=current_user.id)
     db.add(loan)

@@ -29,7 +29,7 @@ def compute_next_due_date(due_day: int, from_date: date) -> date:
         next_year = from_date.year if from_date.month < 12 else from_date.year + 1
         return date(next_year, next_month, 28)
 
-@router.get("/")
+@router.get("")
 async def get_bills(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(Bill)
@@ -222,7 +222,7 @@ async def get_bills_summary(db: AsyncSession = Depends(get_db), current_user: Us
         "active_count": active_count
     })
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_bill(data: BillCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     bill_data = data.model_dump()
     bill_data["next_due_date"] = compute_next_due_date(data.due_day, date.today())
