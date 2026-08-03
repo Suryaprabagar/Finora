@@ -63,9 +63,10 @@ function GoalCard({
   const gap          = requiredSip > 0 && !isFullyFunded ? requiredSip - allocated : 0
   const excess       = isFullyFunded && allocated > requiredSip ? allocated - requiredSip : 0
   const avgReturn    = obj.avg_annual_return ?? portfolioReturn
-  const remaining    = Math.max(0, obj.target_amount - obj.current_funding)
+  const actualFunding = obj.current_funding + allocated
+  const remaining    = Math.max(0, obj.target_amount - actualFunding)
   const progress     = obj.target_amount > 0
-    ? Math.min((obj.current_funding / obj.target_amount) * 100, 100)
+    ? Math.min((actualFunding / obj.target_amount) * 100, 100)
     : 0
 
   return (
@@ -104,7 +105,7 @@ function GoalCard({
       {/* Progress */}
       <div className="mb-4">
         <div className="flex justify-between text-sm mb-1.5">
-          <span className="font-bold text-[#1f1b18]">{formatCurrency(obj.current_funding)}</span>
+          <span className="font-bold text-[#1f1b18]">{formatCurrency(actualFunding)}</span>
           <span className="text-on-surface-variant">of {formatCurrency(obj.target_amount)}</span>
         </div>
         <div className="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
@@ -259,12 +260,16 @@ export default function FinancialPlanningWorkspace() {
 
             <div className="finora-card p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">Total Funded</p>
-              <p className="text-2xl font-display font-bold text-[#1f1b18]">{formatCurrency(overview.total_funding)}</p>
+              <p className="text-2xl font-display font-bold text-[#1f1b18]">{formatCurrency(
+                overview.total_funding + allObjectives.reduce((sum, obj) => sum + (obj.allocated_monthly_surplus || 0), 0)
+              )}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <div className="flex-1 h-1.5 bg-surface-variant rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(overview.overall_progress ?? 0, 100)}%` }} />
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(
+                    ((overview.total_funding + allObjectives.reduce((sum, obj) => sum + (obj.allocated_monthly_surplus || 0), 0)) / overview.total_target) * 100 || 0
+                  , 100)}%` }} />
                 </div>
-                <span className="text-xs font-bold text-primary">{(overview.overall_progress ?? 0).toFixed(1)}%</span>
+                <span className="text-xs font-bold text-primary">{(((overview.total_funding + allObjectives.reduce((sum, obj) => sum + (obj.allocated_monthly_surplus || 0), 0)) / overview.total_target) * 100 || 0).toFixed(1)}%</span>
               </div>
             </div>
 

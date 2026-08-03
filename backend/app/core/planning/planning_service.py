@@ -119,36 +119,21 @@ class PlanningService:
         investments = inv_result.scalars().all()
         
         total_investment_value = Decimal("0")
-        weighted_return = Decimal("0")
+        total_invested_amount = Decimal("0")
         
         for inv in investments:
-            value = inv.current_price * inv.quantity
-            total_investment_value += value
-            if inv.interest_rate:
-                # Explicit interest rate — cap at 50% to prevent data-entry errors inflating SIP
-                weighted_return += value * min(inv.interest_rate, Decimal("50"))
-            else:
-                if inv.current_price and inv.purchase_price and inv.purchase_date:
-                    days_held = (date.today() - inv.purchase_date).days
-                    # Require at least 90 days to compute a meaningful annualized return.
-                    # Very short holding periods cause the annualized formula to explode
-                    # (e.g. 5% gain in 3 days → 6000% annualized) making the SIP near-zero.
-                    if days_held >= 90:
-                        years_held = Decimal(str(days_held)) / Decimal("365.25")
-                        if years_held > 0 and inv.purchase_price > 0:
-                            ret = ((inv.current_price - inv.purchase_price) / inv.purchase_price) / years_held * Decimal("100")
-                            # Cap individual return at 50% p.a. to prevent outliers
-                            ret = min(ret, Decimal("50"))
-                            if ret > 0:
-                                weighted_return += value * ret
+            current_value = inv.current_price * inv.quantity
+            purchase_value = inv.purchase_price * inv.quantity
+            total_investment_value += current_value
+            total_invested_amount += purchase_value
 
-        # Default to a conservative 8% p.a. if no investment data is available
+        # Match the investments page exactly: (total_value - total_invested) / total_invested * 100
         avg_annual_return = Decimal("8.0")
-        if total_investment_value > 0:
-            calculated_return = weighted_return / total_investment_value
-            if calculated_return > 0:
-                # Cap at 30% p.a. — anything higher is not a reliable SIP planning rate
-                avg_annual_return = min(calculated_return, Decimal("30.0"))
+        if total_invested_amount > 0:
+            calc_return = ((total_investment_value - total_invested_amount) / total_invested_amount) * Decimal("100")
+            if calc_return > 0:
+                # Cap at 30% p.a. to prevent unrealistic SIP projections
+                avg_annual_return = min(calc_return, Decimal("30.0"))
 
         # BUG FIX: exclude soft-deleted goals and filter to non-completed goals only
         query = select(Goal).where(Goal.user_id == user_id, Goal.deleted_at.is_(None))
