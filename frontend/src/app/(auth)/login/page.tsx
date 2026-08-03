@@ -42,7 +42,7 @@ export default function LoginPage() {
         router.push('/')
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Login failed')
+      toast.error(error.response?.data?.detail || error.response?.data?.message || 'Login failed')
     } finally {
       setLoading(false)
     }
