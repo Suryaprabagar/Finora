@@ -19,4 +19,4 @@ pytz==2024.2
 aiofiles==24.1.0
 passlib[bcrypt]==1.7.4
 email-validator==2.2.0
-yfinance==0.2.40
+yfinance==1.5.2
