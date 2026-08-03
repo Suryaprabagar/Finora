@@ -14,11 +14,12 @@ db_url = settings.DATABASE_URL
 if db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+from sqlalchemy.pool import NullPool
+
 if db_url.startswith("postgresql"):
     engine_args["pool_pre_ping"] = True
-    engine_args["pool_size"] = 10
-    engine_args["max_overflow"] = 20
-    connect_args["prepared_statement_cache_size"] = 0
+    engine_args["poolclass"] = NullPool
+    connect_args["statement_cache_size"] = 0
     engine_args["connect_args"] = connect_args
 elif db_url.startswith("sqlite"):
     # SQLite needs this to allow multiple async requests to the same file
