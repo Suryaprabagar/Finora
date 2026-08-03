@@ -144,7 +144,7 @@ export default function ExpensesPage() {
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
           <p className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Avg. Daily Spend</p>
           <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(summary.avg_daily)}</h3>
-          <p className="text-[10px] text-on-surface-variant font-medium">Optimal range: $400 - $550</p>
+          <p className="text-[10px] text-on-surface-variant font-medium">Optimal range: ₹30,000 - ₹45,000</p>
         </div>
 
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
@@ -451,8 +451,8 @@ export default function ExpensesPage() {
                 <div className="flex justify-between items-end">
                   <span className="text-[12px] font-bold text-on-surface">{b.n}</span>
                   <div className="text-[11px]">
-                    <span className="text-on-surface-variant font-medium">${b.u}</span>
-                    <span className="text-on-surface-variant opacity-60"> / ${b.m}</span>
+                    <span className="text-on-surface-variant font-medium">{formatCurrency(b.u)}</span>
+                    <span className="text-on-surface-variant opacity-60"> / {formatCurrency(b.m)}</span>
                   </div>
                 </div>
                 <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">

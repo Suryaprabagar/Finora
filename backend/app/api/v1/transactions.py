@@ -12,6 +12,7 @@ from app.dependencies import get_current_user
 from app.schemas.common import APIResponse, Pagination
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Optional, List
 import uuid
 from fastapi.responses import StreamingResponse
@@ -155,28 +156,39 @@ async def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    # Revert old balance
-    if transaction.bank_account_id:
-        old_acc = await db.get(BankAccount, transaction.bank_account_id)
-        if old_acc:
-            if transaction.type == "income":
-                old_acc.balance -= transaction.amount
-            elif transaction.type == "expense":
-                old_acc.balance += transaction.amount
-                
-    if transaction.credit_card_id:
-        old_cc = await db.get(CreditCard, transaction.credit_card_id)
-        if old_cc:
-            if transaction.type == "expense":
-                old_cc.outstanding_balance = max(0, old_cc.outstanding_balance - transaction.amount)
-            elif transaction.type == "income":
-                old_cc.outstanding_balance += transaction.amount
+    # BUG-005 fix: capture ALL old field values before applying any updates.
+    # SQLAlchemy's identity map means db.get(BankAccount, same_id) returns the
+    # *same Python object* both times. If we revert old_acc.balance and then
+    # db.get() the "new" account for apply, we get the already-modified object,
+    # causing double-counting when only the amount (not the account) changed.
+    old_bank_account_id = transaction.bank_account_id
+    old_credit_card_id  = transaction.credit_card_id
+    old_type            = transaction.type
+    old_amount          = transaction.amount
 
+    # Step 1 — revert the old balance using captured pre-update values
+    if old_bank_account_id:
+        old_acc = await db.get(BankAccount, old_bank_account_id)
+        if old_acc:
+            if old_type == "income":
+                old_acc.balance -= old_amount
+            elif old_type == "expense":
+                old_acc.balance += old_amount
+
+    if old_credit_card_id:
+        old_cc = await db.get(CreditCard, old_credit_card_id)
+        if old_cc:
+            if old_type == "expense":
+                old_cc.outstanding_balance = max(Decimal("0"), old_cc.outstanding_balance - old_amount)
+            elif old_type == "income":
+                old_cc.outstanding_balance += old_amount
+
+    # Step 2 — apply the incoming field updates
     update_data = data.model_dump(exclude_unset=True)
     for k, v in update_data.items():
         setattr(transaction, k, v)
-        
-    # Apply new balance
+
+    # Step 3 — apply the new balance using the (now-updated) transaction fields
     if transaction.bank_account_id:
         new_acc = await db.get(BankAccount, transaction.bank_account_id)
         if new_acc:
@@ -184,26 +196,26 @@ async def update_transaction(
                 new_acc.balance += transaction.amount
             elif transaction.type == "expense":
                 new_acc.balance -= transaction.amount
-                
+
     if transaction.credit_card_id:
         new_cc = await db.get(CreditCard, transaction.credit_card_id)
         if new_cc:
             if transaction.type == "expense":
                 new_cc.outstanding_balance += transaction.amount
             elif transaction.type == "income":
-                new_cc.outstanding_balance = max(0, new_cc.outstanding_balance - transaction.amount)
+                new_cc.outstanding_balance = max(Decimal("0"), new_cc.outstanding_balance - transaction.amount)
 
     await db.commit()
     await db.refresh(transaction)
-    
-    # Reload with relationships
+
+    # Reload with relationships for the response
     result = await db.execute(
         select(Transaction)
         .options(selectinload(Transaction.category), selectinload(Transaction.bank_account), selectinload(Transaction.credit_card))
         .where(Transaction.id == transaction.id)
     )
     transaction = result.scalar_one()
-    
+
     return APIResponse(data=TransactionResponse.model_validate(transaction).model_dump(), message="Transaction updated")
 
 @router.delete("/{id}")

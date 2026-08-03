@@ -114,14 +114,22 @@ export default function SettingsPage() {
     })
   }
 
-  const handleExportJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ user, categories }, null, 2))
-    const downloadAnchorNode = document.createElement('a')
-    downloadAnchorNode.setAttribute("href", dataStr)
-    downloadAnchorNode.setAttribute("download", "finora_export.json")
-    document.body.appendChild(downloadAnchorNode)
-    downloadAnchorNode.click()
-    downloadAnchorNode.remove()
+  const handleExportJSON = async () => {
+    const pwd = window.prompt("Enter a strong password to encrypt your local backup:\n(You will need this password to restore it later)")
+    if (!pwd) return
+    try {
+      const payload = await settingsApi.exportData()
+      const encrypted = await encryptData(payload, pwd)
+      const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted)
+      const downloadAnchorNode = document.createElement('a')
+      downloadAnchorNode.setAttribute("href", dataStr)
+      downloadAnchorNode.setAttribute("download", `finora-backup-local-${new Date().toISOString().replace(/[:.]/g, '-')}.enc`)
+      document.body.appendChild(downloadAnchorNode)
+      downloadAnchorNode.click()
+      downloadAnchorNode.remove()
+    } catch (e: any) {
+      alert("Failed to export backup: " + e.message)
+    }
   }
 
   const handleReset = () => {
@@ -133,11 +141,26 @@ export default function SettingsPage() {
   const handleImportJSONClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.json,application/json'
-    input.onchange = (e: any) => {
+    input.accept = '.enc'
+    input.onchange = async (e: any) => {
       if (e.target.files?.length > 0) {
-        // Mock import
-        alert('Data successfully imported and processed!')
+        const file = e.target.files[0]
+        const pwd = window.prompt("Enter the password to decrypt this backup file:")
+        if (!pwd) return
+        
+        const reader = new FileReader()
+        reader.onload = async (ev) => {
+          try {
+            const encryptedData = ev.target?.result as string
+            const decryptedPayload = await decryptData(encryptedData, pwd)
+            await settingsApi.restoreData(decryptedPayload)
+            alert('Data successfully restored! The page will now reload.')
+            window.location.reload()
+          } catch (err: any) {
+            alert('Restore failed: Incorrect password or corrupted backup file.')
+          }
+        }
+        reader.readAsText(file)
       }
     }
     input.click()
@@ -364,11 +387,11 @@ export default function SettingsPage() {
           <div className="grid grid-cols-4 gap-2">
             <button onClick={handleImportJSONClick} className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg hover:bg-surface-variant/30 transition-colors group relative">
               <span className="material-symbols-outlined text-[#795548] text-[24px] group-hover:-translate-y-0.5 transition-transform">upload_file</span>
-              <span className="text-[10px] font-bold text-[#1f1b18]">Import JSON</span>
+              <span className="text-[10px] font-bold text-[#1f1b18]">Import .enc</span>
             </button>
             <button onClick={handleExportJSON} className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg hover:bg-surface-variant/30 transition-colors group">
               <span className="material-symbols-outlined text-[#795548] text-[24px] group-hover:-translate-y-0.5 transition-transform">download</span>
-              <span className="text-[10px] font-bold text-[#1f1b18]">Export JSON</span>
+              <span className="text-[10px] font-bold text-[#1f1b18]">Export .enc</span>
             </button>
             <button onClick={() => setIsBackupModalOpen(true)} className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg hover:bg-surface-variant/30 transition-colors group relative">
               <span className="material-symbols-outlined text-[#795548] text-[24px] group-hover:-translate-y-0.5 transition-transform">cloud_sync</span>

@@ -194,13 +194,21 @@ class PlanningService:
             goal.temp_required_sip = required_sip
             goal.temp_allocated = allocated
             
+        # ── Second pass: cascade any remaining surplus through goals in priority order ──
+        # After covering all required SIPs, leftover surplus accelerates goals one by one.
+        # Each goal gets up to (target - current_funding) of surplus; excess flows to the next.
         if remaining_surplus > 0:
             for ps, goal in goals_with_priority:
-                current_funding = await FundingCalculator.calculate_total_funding(db, goal.id, "Goal")
-                if current_funding < goal.target_amount:
-                    goal.temp_allocated += remaining_surplus
-                    remaining_surplus = Decimal("0")
+                if remaining_surplus <= 0:
                     break
+                # Re-compute current funding to know how much headroom this goal has
+                current_funding = await FundingCalculator.calculate_total_funding(db, goal.id, "Goal")
+                headroom = goal.target_amount - current_funding - goal.temp_allocated
+                if headroom <= 0:
+                    continue  # Goal is already fully funded (including SIP allocation)
+                extra = min(remaining_surplus, headroom)
+                goal.temp_allocated += extra
+                remaining_surplus -= extra
 
         objectives_data = []
         for ps, goal in goals_with_priority:

@@ -27,56 +27,53 @@ async def get_investments(db: AsyncSession = Depends(get_db), current_user: User
     data = []
     for inv in investments:
         inv_data = InvestmentResponse.model_validate(inv).model_dump()
-        current_value = inv.current_price * inv.quantity
-        purchase_value = inv.purchase_price * inv.quantity
+        current_value = float(inv.current_price * inv.quantity)
+        purchase_value = float(inv.purchase_price * inv.quantity)
         gain_loss = current_value - purchase_value
-        
-        inv_data["current_value"] = float(current_value)
-        inv_data["gain_loss"] = float(gain_loss)
-        inv_data["gain_loss_percent"] = float((gain_loss / purchase_value) * 100) if purchase_value > 0 else 0
+        inv_data["current_value"]      = current_value
+        inv_data["gain_loss"]          = gain_loss
+        inv_data["gain_loss_percent"]  = (gain_loss / purchase_value * 100) if purchase_value > 0 else 0
         data.append(inv_data)
         
     return APIResponse(data=data)
 
 @router.get("/summary")
 async def get_investments_summary(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
-        select(Investment)
+    # Single aggregate query — no Python loop over N rows
+    agg_result = await db.execute(
+        select(
+            func.coalesce(func.sum(Investment.current_price * Investment.quantity), 0).label('total_value'),
+            func.coalesce(func.sum(Investment.purchase_price * Investment.quantity), 0).label('total_invested'),
+        )
         .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
     )
-    investments = result.scalars().all()
-    
-    total_value = 0
-    total_invested = 0
-    allocation = {}
-    
-    for inv in investments:
-        current_value = float(inv.current_price * inv.quantity)
-        purchase_value = float(inv.purchase_price * inv.quantity)
-        total_value += current_value
-        total_invested += purchase_value
-        
-        if inv.type not in allocation:
-            allocation[inv.type] = 0
-        allocation[inv.type] += current_value
-        
-    total_gain_loss = total_value - total_invested
+    agg = agg_result.one()
+    total_value    = float(agg.total_value)
+    total_invested = float(agg.total_invested)
+
+    # Allocation breakdown still needs per-type grouping — one query
+    alloc_result = await db.execute(
+        select(
+            Investment.type,
+            func.coalesce(func.sum(Investment.current_price * Investment.quantity), 0).label('value')
+        )
+        .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
+        .group_by(Investment.type)
+    )
+    allocation_data = [
+        {"type": row.type, "value": float(row.value), "pct": (float(row.value) / total_value * 100) if total_value > 0 else 0}
+        for row in alloc_result.all()
+    ]
+
+    total_gain_loss     = total_value - total_invested
     total_gain_loss_pct = (total_gain_loss / total_invested * 100) if total_invested > 0 else 0
-    
-    allocation_data = []
-    for k, v in allocation.items():
-        allocation_data.append({
-            "type": k,
-            "value": v,
-            "pct": (v / total_value * 100) if total_value > 0 else 0
-        })
-        
+
     return APIResponse(data={
-        "total_value": total_value,
-        "total_invested": total_invested,
-        "total_gain_loss": total_gain_loss,
+        "total_value":         total_value,
+        "total_invested":      total_invested,
+        "total_gain_loss":     total_gain_loss,
         "total_gain_loss_pct": total_gain_loss_pct,
-        "allocation": allocation_data
+        "allocation":          allocation_data
     })
 
 @router.post("/", status_code=201)
