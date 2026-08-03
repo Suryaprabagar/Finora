@@ -9,17 +9,22 @@ engine_args = {
     "echo": False,
 }
 
-if settings.DATABASE_URL.startswith("postgresql"):
+# Ensure postgresql uses asyncpg if not explicitly specified
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+if db_url.startswith("postgresql"):
     engine_args["pool_pre_ping"] = True
     engine_args["pool_size"] = 10
     engine_args["max_overflow"] = 20
-elif settings.DATABASE_URL.startswith("sqlite"):
+elif db_url.startswith("sqlite"):
     # SQLite needs this to allow multiple async requests to the same file
     connect_args["check_same_thread"] = False
     engine_args["connect_args"] = connect_args
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    db_url,
     **engine_args
 )
 
