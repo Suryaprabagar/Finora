@@ -57,7 +57,7 @@ async def generate_report(data: ReportGenerateRequest, db: AsyncSession = Depend
     
     return APIResponse(data=ReportResponse.model_validate(report).model_dump(), message="Report generated")
 
-@router.get("/")
+@router.get("")
 async def list_reports(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(Report).where(Report.user_id == current_user.id).order_by(desc(Report.created_at))

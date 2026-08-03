@@ -15,7 +15,7 @@ from app.services.market_service import fetch_eod_prices
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_investments(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
         select(Investment)
@@ -76,7 +76,7 @@ async def get_investments_summary(db: AsyncSession = Depends(get_db), current_us
         "allocation":          allocation_data
     })
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_investment(data: InvestmentCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     inv = Investment(**data.model_dump(), user_id=current_user.id)
     db.add(inv)

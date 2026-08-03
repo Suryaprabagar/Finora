@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_goals(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Fetches all goals, processed through the PlanningService calculation pipeline."""
     result = await db.execute(
@@ -36,7 +36,7 @@ async def get_goals_overview(db: AsyncSession = Depends(get_db), current_user: U
     overview_data = await PlanningService.get_user_planning_overview(db, current_user.id)
     return APIResponse(data=overview_data)
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_goal(data: GoalCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     goal = Goal(**data.model_dump(), user_id=current_user.id)
     db.add(goal)

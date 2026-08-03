@@ -23,7 +23,7 @@ from app.dependencies import get_current_user
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_dashboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

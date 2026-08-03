@@ -22,7 +22,7 @@ import io
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_transactions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -89,7 +89,7 @@ async def get_transactions(
         pagination=Pagination(page=page, per_page=per_page, total=total)
     )
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_transaction(
     data: TransactionCreate,
     db: AsyncSession = Depends(get_db),
