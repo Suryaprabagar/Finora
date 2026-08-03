@@ -101,13 +101,25 @@ async def get_expenses_summary(db: AsyncSession = Depends(get_db), current_user:
         .limit(1)
     )
     top_category = top_cat_r.scalar_one_or_none() or "None"
-    
+
+    # BUG-017 fix: compute actual recurring count instead of hardcoding 0
+    recurring_r = await db.execute(
+        select(func.count(Transaction.id))
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "expense",
+            Transaction.is_recurring.is_(True),
+            Transaction.deleted_at.is_(None),
+        )
+    )
+    recurring_count = recurring_r.scalar() or 0
+
     return APIResponse(data={
         "monthly_total": monthly_total,
         "last_month_total": last_month_total,
         "change_pct": change_pct,
         "avg_daily": avg_daily,
-        "recurring_count": 0,
+        "recurring_count": recurring_count,
         "top_category": top_category
     })
 

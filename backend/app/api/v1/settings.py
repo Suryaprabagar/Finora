@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -7,8 +7,10 @@ from app.models.category import Category
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.services.backup_service import export_user_data, restore_user_data
 import uuid
 from datetime import datetime, timezone
+import json
 
 router = APIRouter()
 
@@ -70,3 +72,46 @@ async def reset_demo(db: AsyncSession = Depends(get_db), current_user: User = De
         return APIResponse(message="Demo data reset successfully")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/export")
+async def export_data(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Exports all user data for backup."""
+    try:
+        data = await export_user_data(db, current_user.id)
+        
+        # Wrap in metadata
+        backup = {
+            "app": "Finora",
+            "backupVersion": 1,
+            "schemaVersion": 1,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "finoraVersion": "1.0.0",
+            "data": data
+        }
+        return backup  # Return direct dict to avoid Pydantic serialization limits
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.post("/restore")
+async def restore_data(
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Restores user data from a backup payload within a transaction."""
+    # 1. Validate payload
+    if payload.get("app") != "Finora" or "data" not in payload:
+        raise HTTPException(status_code=400, detail="Invalid backup file format.")
+        
+    if payload.get("schemaVersion", 1) > 1:
+        raise HTTPException(status_code=400, detail="Backup schema version is too new for this version of Finora.")
+
+    # 2. Restore in transaction
+    try:
+        # FastAPI's async session is already in a transaction by default until commit
+        await restore_user_data(db, current_user.id, payload["data"])
+        await db.commit()
+        return APIResponse(message="Data restored successfully.")
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")

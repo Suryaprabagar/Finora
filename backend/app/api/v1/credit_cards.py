@@ -25,8 +25,8 @@ async def get_credit_cards(db: AsyncSession = Depends(get_db), current_user: Use
     data = []
     for c in cards:
         c_data = CreditCardResponse.model_validate(c).model_dump()
-        c_data["utilization_percent"] = (float(c.outstanding_balance) / float(c.limit) * 100) if float(c.limit) > 0 else 0
-        c_data["available_credit"] = float(c.limit) - float(c.outstanding_balance)
+        c_data["utilization_percent"] = (float(c.outstanding_balance) / float(c.credit_limit) * 100) if float(c.credit_limit) > 0 else 0
+        c_data["available_credit"] = float(c.credit_limit) - float(c.outstanding_balance)
         data.append(c_data)
         
     return APIResponse(data=data)
@@ -49,8 +49,9 @@ async def get_credit_card(id: uuid.UUID, db: AsyncSession = Depends(get_db), cur
         raise HTTPException(status_code=404, detail="Credit card not found")
         
     c_data = CreditCardResponse.model_validate(card).model_dump()
-    c_data["utilization_percent"] = (float(card.outstanding_balance) / float(card.limit) * 100) if float(card.limit) > 0 else 0
-    c_data["available_credit"] = float(card.limit) - float(card.outstanding_balance)
+    # BUG-001 fix: use card.credit_limit (card.limit does not exist on the model)
+    c_data["utilization_percent"] = (float(card.outstanding_balance) / float(card.credit_limit) * 100) if float(card.credit_limit) > 0 else 0
+    c_data["available_credit"] = float(card.credit_limit) - float(card.outstanding_balance)
     return APIResponse(data=c_data)
 
 @router.put("/{id}")
@@ -113,11 +114,12 @@ async def credit_card_payment(id: uuid.UUID, data: CreditCardPaymentCreate, db: 
     else:
         txn_date = data.date
         
-    # Create transaction
+    # BUG-028 fix: use type="transfer" instead of "expense" to avoid double-counting.
+    # The original purchase transaction already recorded the expense when the card was charged.
     txn = Transaction(
         user_id=current_user.id,
         amount=data.amount,
-        type="expense", # Since paying a CC is functionally moving cash to an expense bucket
+        type="transfer",  # Not an expense — this is a balance sheet movement
         date=txn_date,
         description=f"Credit Card Payment: {card.name}",
         merchant=card.bank_name,

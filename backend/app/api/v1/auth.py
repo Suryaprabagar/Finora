@@ -1,5 +1,6 @@
 """Authentication endpoints: register, login, refresh, logout, forgot/reset password."""
 import uuid
+import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from app.schemas.user import UserResponse
 from app.schemas.common import APIResponse
 from app.dependencies import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Default categories created for every new user
@@ -37,8 +39,9 @@ DEFAULT_CATEGORIES = [
 ]
 
 
-@router.post("/register_original", status_code=status.HTTP_201_CREATED)
-async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+# BUG-003 fix: renamed from register_original and made internal (not exposed as a route).
+# Called by the public /register route below.
+async def _do_register(data: RegisterRequest, db: AsyncSession):
     """Register a new user and create default categories."""
     # Check if email already exists
     existing = await db.execute(select(User).where(User.email == data.email))
@@ -82,8 +85,8 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/login_original")
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+# BUG-003 fix: renamed from login_original and made internal (not exposed as a route).
+async def _do_login(data: LoginRequest, db: AsyncSession):
     """Authenticate user and return JWT tokens."""
     result = await db.execute(select(User).where(User.email == data.email, User.is_active.is_(True)))
     user = result.scalar_one_or_none()
@@ -187,16 +190,24 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/login")
 async def login_wrapper(data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    # BUG-002 fix: log errors internally, never return stack traces to the client
     try:
-        return await login(data, db)
-    except Exception as e:
+        return await _do_login(data, db)
+    except HTTPException:
+        raise  # let FastAPI handle HTTP exceptions normally
+    except Exception:
         import traceback
-        return APIResponse(success=False, message=traceback.format_exc(), data=None)
+        logger.error(f"Unexpected error during login: {traceback.format_exc()}")
+        return APIResponse(success=False, message="An unexpected error occurred. Please try again.", data=None)
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_wrapper(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    # BUG-002 fix: log errors internally, never return stack traces to the client
     try:
-        return await register(data, db)
-    except Exception as e:
+        return await _do_register(data, db)
+    except HTTPException:
+        raise  # let FastAPI handle HTTP exceptions normally
+    except Exception:
         import traceback
-        return APIResponse(success=False, message=traceback.format_exc(), data=None)
+        logger.error(f"Unexpected error during register: {traceback.format_exc()}")
+        return APIResponse(success=False, message="An unexpected error occurred. Please try again.", data=None)

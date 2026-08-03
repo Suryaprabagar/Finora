@@ -11,6 +11,7 @@ interface StatCardProps {
   className?: string
   loading?: boolean
   href?: string
+  action?: React.ReactNode
 }
 
 export function StatCard({
@@ -24,6 +25,7 @@ export function StatCard({
   className = '',
   loading = false,
   href,
+  action,
 }: StatCardProps) {
   
   if (loading) {
@@ -52,21 +54,28 @@ export function StatCard({
         minHeight: 130,
       }}
     >
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="flex justify-between items-start mb-4">
         <p className="text-[13px] font-medium" style={{ color: '#51443c' }}>{title}</p>
-        {icon && (
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: iconBg }}
-          >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: 20, color: iconColor, fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20" }}
+        <div className="flex gap-3 items-center">
+          {action && (
+            <div onClick={(e) => e.preventDefault()} className="z-10">
+              {action}
+            </div>
+          )}
+          {icon && (
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: iconBg }}
             >
-              {icon}
-            </span>
-          </div>
-        )}
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: 20, color: iconColor, fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20" }}
+              >
+                {icon}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div>

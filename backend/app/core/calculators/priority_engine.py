@@ -26,9 +26,10 @@ class PriorityEngine:
         
         # Base score from importance
         importance_scores = {
+            "Critical": 80,
             "High": 60,
             "Medium": 40,
-            "Low": 20
+            "Low": 20,
         }
         score += importance_scores.get(importance, 40)
         

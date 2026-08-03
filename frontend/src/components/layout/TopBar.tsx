@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
-import { debounce, getInitials } from '@/lib/utils'
+import { getInitials } from '@/lib/utils'
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -44,18 +44,6 @@ export function TopBar() {
 
   const title = pageTitles[pathname] ?? 'Finora'
 
-  const handleSearch = useMemo(
-    () => debounce((query: string) => {
-      if (query.trim()) {
-        console.log('Searching for:', query)
-      }
-    }, 300),
-    []
-  )
-
-  useEffect(() => {
-    return () => handleSearch.cancel()
-  }, [handleSearch])
 
   const handleLogout = () => {
     logout()
@@ -86,32 +74,8 @@ export function TopBar() {
         </h2>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Search */}
-        <div className="relative hidden sm:flex items-center w-52">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#83746b] pointer-events-none" style={{ fontSize: 18 }}>
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search..."
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm rounded-full border-none outline-none transition-all focus:ring-2 focus:ring-[#6f4627]/20"
-            style={{ background: '#ebe0db', color: '#1f1b18' }}
-          />
-        </div>
-
-        {/* Notification Bell */}
-        <button
-          className="relative w-9 h-9 flex items-center justify-center rounded-full text-[#51443c] hover:bg-[#f6ece7] transition-colors"
-          aria-label="Notifications"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-        </button>
-
-        {/* User avatar + dropdown */}
-        <div className="relative">
+      {/* User avatar + dropdown */}
+      <div className="relative">
           <button
             onClick={() => setShowDropdown(!showDropdown)}
             className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-[#f6ece7] transition-colors"
@@ -158,7 +122,6 @@ export function TopBar() {
             </>
           )}
         </div>
-      </div>
     </header>
   )
 }

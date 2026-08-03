@@ -3,10 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.core.database import get_db
 from app.models.user import User
-from app.models.goal import Goal
+from app.models.goal import Goal, GoalContribution
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
-from app.schemas.goal import GoalCreate, GoalUpdate, GoalResponse
+from app.schemas.goal import GoalCreate, GoalUpdate, GoalResponse, GoalContributionCreate, GoalContributionResponse
 from app.core.planning.planning_service import PlanningService
 import uuid
 from datetime import datetime, timezone
@@ -85,3 +85,34 @@ async def delete_goal(id: uuid.UUID, db: AsyncSession = Depends(get_db), current
     goal.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     return APIResponse(message="Goal deleted")
+
+@router.post("/{id}/contribute", status_code=201)
+async def contribute_to_goal(
+    id: uuid.UUID,
+    data: GoalContributionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Record a manual contribution towards a goal."""
+    result = await db.execute(
+        select(Goal).where(Goal.id == id, Goal.user_id == current_user.id, Goal.deleted_at.is_(None))
+    )
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    contribution = GoalContribution(
+        goal_id=goal.id,
+        amount=data.amount,
+        date=data.date,
+        notes=data.notes,
+    )
+    db.add(contribution)
+    await db.commit()
+    await db.refresh(contribution)
+
+    return APIResponse(
+        data=GoalContributionResponse.model_validate(contribution).model_dump(),
+        message="Contribution recorded successfully"
+    )
+

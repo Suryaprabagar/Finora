@@ -20,10 +20,20 @@ const schema = z.object({
   purchase_date: z.string().min(1, 'Purchase date is required'),
   maturity_date: z.string().optional(),
   interest_rate: z.coerce.number().optional(),
+  coupon_frequency: z.string().optional(),
+  next_coupon_date: z.string().optional(),
   broker: z.string().optional(),
   folio_number: z.string().optional(),
   notes: z.string().optional(),
   bank_account_id: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === 'bonds' && !data.bank_account_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Bank account is required for bond automated payouts.',
+      path: ['bank_account_id']
+    });
+  }
 })
 
 type FormData = z.infer<typeof schema>
@@ -62,6 +72,8 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
       purchase_date: new Date().toISOString().split('T')[0],
       maturity_date: '',
       interest_rate: 0,
+      coupon_frequency: '',
+      next_coupon_date: '',
       broker: '',
       folio_number: '',
       notes: '',
@@ -80,6 +92,8 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         purchase_date: initialData.purchase_date,
         maturity_date: initialData.maturity_date || '',
         interest_rate: initialData.interest_rate || 0,
+        coupon_frequency: initialData.coupon_frequency || '',
+        next_coupon_date: initialData.next_coupon_date || '',
         broker: initialData.broker || '',
         folio_number: initialData.folio_number || '',
         notes: initialData.notes || '',
@@ -91,7 +105,9 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
     mutationFn: (data: FormData) => {
       const payload = {
         ...data,
-        maturity_date: data.maturity_date === '' ? null : data.maturity_date
+        maturity_date: data.maturity_date === '' ? null : data.maturity_date,
+        next_coupon_date: data.next_coupon_date === '' ? null : data.next_coupon_date,
+        coupon_frequency: data.coupon_frequency === '' ? null : data.coupon_frequency
       }
       return isEditing 
         ? investmentsApi.update(initialData.id, payload)
@@ -205,6 +221,29 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         </div>
       )}
 
+      {selectedType === 'bonds' && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="coupon_frequency">Frequent Pay</Label>
+            <select 
+              id="coupon_frequency" 
+              className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+              {...register('coupon_frequency')}
+            >
+              <option value="">None</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="semi-annually">Semi-Annually</option>
+              <option value="annually">Annually</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="next_coupon_date">First Pay Date</Label>
+            <Input id="next_coupon_date" type="date" {...register('next_coupon_date')} />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="broker">Broker / Platform</Label>
@@ -218,7 +257,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="bank_account_id">Linked Bank Account</Label>
+          <Label htmlFor="bank_account_id">Linked Bank Account {selectedType === 'bonds' && '*'}</Label>
           <select 
             id="bank_account_id" 
             className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
@@ -229,6 +268,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
               <option key={acc.id} value={acc.id}>{acc.name} (Bal: {acc.balance})</option>
             ))}
           </select>
+          {errors.bank_account_id && <p className="text-sm text-error">{errors.bank_account_id.message}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="notes">Notes</Label>

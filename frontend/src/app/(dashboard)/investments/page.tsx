@@ -27,19 +27,27 @@ export default function InvestmentsPage() {
 
   const queryClient = useQueryClient()
 
+  // staleTime: serve cached data on re-visits without re-fetching.
+  // gcTime: keep data in cache for 10 min even when no component is mounted.
   const { data: summaryRes, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['investments-summary'],
     queryFn: () => investmentsApi.getSummary().then(r => r.data),
+    staleTime: 2 * 60 * 1000,   // 2 min — page loads instantly on re-visit
+    gcTime:   10 * 60 * 1000,   // keep in cache 10 min
   })
 
   const { data: analyticsRes, isLoading: isAnalyticsLoading } = useQuery({
     queryKey: ['analyticsDashboard'],
     queryFn: () => analyticsApi.getDashboard(),
+    staleTime: 5 * 60 * 1000,   // 5 min — analytics is the heaviest query
+    gcTime:   10 * 60 * 1000,
   })
 
   const { data: listRes, isLoading: isListLoading } = useQuery({
     queryKey: ['investments'],
     queryFn: () => investmentsApi.list().then(r => r.data),
+    staleTime: 2 * 60 * 1000,
+    gcTime:   10 * 60 * 1000,
   })
 
   const deleteMutation = useMutation({

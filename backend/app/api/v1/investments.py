@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.investment import Investment
 from app.models.bank_account import BankAccount
+from app.models.transaction import Transaction
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
 from app.schemas.investment import InvestmentCreate, InvestmentUpdate, InvestmentResponse, InvestmentTrade
@@ -26,56 +27,53 @@ async def get_investments(db: AsyncSession = Depends(get_db), current_user: User
     data = []
     for inv in investments:
         inv_data = InvestmentResponse.model_validate(inv).model_dump()
-        current_value = inv.current_price * inv.quantity
-        purchase_value = inv.purchase_price * inv.quantity
+        current_value = float(inv.current_price * inv.quantity)
+        purchase_value = float(inv.purchase_price * inv.quantity)
         gain_loss = current_value - purchase_value
-        
-        inv_data["current_value"] = float(current_value)
-        inv_data["gain_loss"] = float(gain_loss)
-        inv_data["gain_loss_percent"] = float((gain_loss / purchase_value) * 100) if purchase_value > 0 else 0
+        inv_data["current_value"]      = current_value
+        inv_data["gain_loss"]          = gain_loss
+        inv_data["gain_loss_percent"]  = (gain_loss / purchase_value * 100) if purchase_value > 0 else 0
         data.append(inv_data)
         
     return APIResponse(data=data)
 
 @router.get("/summary")
 async def get_investments_summary(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
-        select(Investment)
+    # Single aggregate query — no Python loop over N rows
+    agg_result = await db.execute(
+        select(
+            func.coalesce(func.sum(Investment.current_price * Investment.quantity), 0).label('total_value'),
+            func.coalesce(func.sum(Investment.purchase_price * Investment.quantity), 0).label('total_invested'),
+        )
         .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
     )
-    investments = result.scalars().all()
-    
-    total_value = 0
-    total_invested = 0
-    allocation = {}
-    
-    for inv in investments:
-        current_value = float(inv.current_price * inv.quantity)
-        purchase_value = float(inv.purchase_price * inv.quantity)
-        total_value += current_value
-        total_invested += purchase_value
-        
-        if inv.type not in allocation:
-            allocation[inv.type] = 0
-        allocation[inv.type] += current_value
-        
-    total_gain_loss = total_value - total_invested
+    agg = agg_result.one()
+    total_value    = float(agg.total_value)
+    total_invested = float(agg.total_invested)
+
+    # Allocation breakdown still needs per-type grouping — one query
+    alloc_result = await db.execute(
+        select(
+            Investment.type,
+            func.coalesce(func.sum(Investment.current_price * Investment.quantity), 0).label('value')
+        )
+        .where(Investment.user_id == current_user.id, Investment.is_active.is_(True), Investment.deleted_at.is_(None))
+        .group_by(Investment.type)
+    )
+    allocation_data = [
+        {"type": row.type, "value": float(row.value), "pct": (float(row.value) / total_value * 100) if total_value > 0 else 0}
+        for row in alloc_result.all()
+    ]
+
+    total_gain_loss     = total_value - total_invested
     total_gain_loss_pct = (total_gain_loss / total_invested * 100) if total_invested > 0 else 0
-    
-    allocation_data = []
-    for k, v in allocation.items():
-        allocation_data.append({
-            "type": k,
-            "value": v,
-            "pct": (v / total_value * 100) if total_value > 0 else 0
-        })
-        
+
     return APIResponse(data={
-        "total_value": total_value,
-        "total_invested": total_invested,
-        "total_gain_loss": total_gain_loss,
+        "total_value":         total_value,
+        "total_invested":      total_invested,
+        "total_gain_loss":     total_gain_loss,
         "total_gain_loss_pct": total_gain_loss_pct,
-        "allocation": allocation_data
+        "allocation":          allocation_data
     })
 
 @router.post("/", status_code=201)
@@ -87,6 +85,47 @@ async def create_investment(data: InvestmentCreate, db: AsyncSession = Depends(g
         acc = await db.get(BankAccount, data.bank_account_id)
         if acc:
             acc.balance -= (data.purchase_price * data.quantity)
+            
+    # Bond automated transactions logic
+    if data.type.lower() == "bonds" and data.bank_account_id:
+        # Recurring income for frequent pay
+        if data.coupon_frequency and data.next_coupon_date:
+            coupon_amount = 0
+            if data.interest_rate:
+                # Basic estimated coupon logic: Total Value * Rate / Freq
+                principal = float(data.purchase_price * data.quantity)
+                rate = float(data.interest_rate) / 100.0
+                freq_div = 1
+                if data.coupon_frequency.lower() == 'monthly': freq_div = 12
+                elif data.coupon_frequency.lower() == 'quarterly': freq_div = 4
+                elif data.coupon_frequency.lower() in ('semi-annually', 'half-yearly'): freq_div = 2
+                coupon_amount = (principal * rate) / freq_div
+            
+            recurring_inc = Transaction(
+                user_id=current_user.id,
+                bank_account_id=data.bank_account_id,
+                type="income",
+                amount=coupon_amount,
+                date=data.next_coupon_date,
+                description=f"Bond Coupon - {data.name}",
+                is_recurring=True,
+                recurring_interval=data.coupon_frequency.lower()
+            )
+            db.add(recurring_inc)
+            
+        # One-time principal payout at maturity
+        if data.maturity_date:
+            principal_amount = data.purchase_price * data.quantity
+            maturity_inc = Transaction(
+                user_id=current_user.id,
+                bank_account_id=data.bank_account_id,
+                type="income",
+                amount=principal_amount,
+                date=data.maturity_date,
+                description=f"Bond Maturity Principal - {data.name}",
+                is_recurring=False
+            )
+            db.add(maturity_inc)
             
     await db.commit()
     await db.refresh(inv)
@@ -161,7 +200,8 @@ async def delete_investment(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
     if inv.bank_account_id:
         acc = await db.get(BankAccount, inv.bank_account_id)
         if acc:
-            acc.balance += (inv.current_price * inv.quantity)
+            # BUG-011 fix: refund the original purchase cost, not the current market value
+            acc.balance += (inv.purchase_price * inv.quantity)
             
     inv.deleted_at = datetime.now(timezone.utc)
     await db.commit()

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { transactionsApi, bankAccountsApi, settingsApi } from '@/lib/api'
+import { transactionsApi, bankAccountsApi, settingsApi, creditCardsApi } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -16,7 +16,7 @@ const schema = z.object({
   date: z.string().min(1, 'Date is required'),
   description: z.string().min(1, 'Description is required'),
   category_id: z.string().nullable(),
-  bank_account_id: z.string().min(1, 'Bank account is required'),
+  account_id: z.string().min(1, 'Account or Cash is required'),
   merchant: z.string().optional(),
   status: z.enum(['cleared', 'pending', 'failed']).default('cleared'),
   payment_method: z.string().optional(),
@@ -40,12 +40,18 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
     queryFn: () => bankAccountsApi.list().then(r => r.data),
   })
 
+  const { data: creditCardsRes } = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: () => creditCardsApi.list().then(r => r.data),
+  })
+
   const { data: categoriesRes } = useQuery({
     queryKey: ['categories'],
     queryFn: () => settingsApi.getCategories().then(r => r.data),
   })
 
   const accounts = bankAccountsRes?.data || []
+  const creditCards = creditCardsRes?.data || []
   const categories = categoriesRes?.data || []
 
   const {
@@ -63,7 +69,7 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
       date: new Date().toISOString().split('T')[0],
       description: '',
       category_id: null,
-      bank_account_id: '',
+      account_id: '',
       merchant: '',
       status: 'cleared',
       payment_method: '',
@@ -75,13 +81,18 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
 
   useEffect(() => {
     if (initialData) {
+      let initialAccountId = ''
+      if (initialData.bank_account_id) initialAccountId = `bank:${initialData.bank_account_id}`
+      else if (initialData.credit_card_id) initialAccountId = `card:${initialData.credit_card_id}`
+      else if (initialData.payment_method === 'cash') initialAccountId = 'cash'
+      
       reset({
         type: initialData.type,
         amount: initialData.amount,
         date: initialData.date,
         description: initialData.description,
         category_id: initialData.category_id || null,
-        bank_account_id: initialData.bank_account_id,
+        account_id: initialAccountId,
         merchant: initialData.merchant || '',
         status: initialData.status,
         payment_method: initialData.payment_method || '',
@@ -92,9 +103,25 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
 
   const mutation = useMutation({
     mutationFn: (data: FormData) => {
+      let bank_account_id = null
+      let credit_card_id = null
+      let payment_method = data.payment_method
+      
+      if (data.account_id === 'cash') {
+        payment_method = 'cash'
+      } else if (data.account_id.startsWith('bank:')) {
+        bank_account_id = data.account_id.split(':')[1]
+      } else if (data.account_id.startsWith('card:')) {
+        credit_card_id = data.account_id.split(':')[1]
+        payment_method = 'card'
+      }
+      
       // Convert empty strings to null for optional relations
       const payload = {
         ...data,
+        bank_account_id,
+        credit_card_id,
+        payment_method: payment_method || null,
         category_id: data.category_id === '' ? null : data.category_id,
       }
       return isEditing 
@@ -166,18 +193,26 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="bank_account_id">Account *</Label>
+          <Label htmlFor="account_id">Account / Funding Source *</Label>
           <select 
-            id="bank_account_id" 
+            id="account_id" 
             className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
-            {...register('bank_account_id')}
+            {...register('account_id')}
           >
             <option value="">Select Account</option>
-            {accounts.map((acc: any) => (
-              <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance})</option>
-            ))}
+            <option value="cash">Cash (Wallet)</option>
+            {accounts.length > 0 && <optgroup label="Bank Accounts">
+              {accounts.map((acc: any) => (
+                <option key={`bank:${acc.id}`} value={`bank:${acc.id}`}>{acc.name} ({acc.balance})</option>
+              ))}
+            </optgroup>}
+            {txType === 'expense' && creditCards.length > 0 && <optgroup label="Credit Cards">
+              {creditCards.map((card: any) => (
+                <option key={`card:${card.id}`} value={`card:${card.id}`}>{card.bank_name} {card.card_number ? `(${card.card_number})` : ''}</option>
+              ))}
+            </optgroup>}
           </select>
-          {errors.bank_account_id && <p className="text-sm text-error">{errors.bank_account_id.message}</p>}
+          {errors.account_id && <p className="text-sm text-error">{errors.account_id.message as string}</p>}
         </div>
 
         {txType !== 'transfer' && (

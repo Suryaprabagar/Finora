@@ -9,6 +9,7 @@ from app.dependencies import get_current_user
 from app.schemas.common import APIResponse
 from app.schemas.loan import LoanCreate, LoanUpdate, LoanResponse, LoanPaymentCreate
 import uuid
+import calendar
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -42,7 +43,7 @@ async def get_loans_summary(db: AsyncSession = Depends(get_db), current_user: Us
     totals = result.one()
     
     paid_r = await db.execute(
-        select(func.coalesce(func.sum(LoanPayment.principal_amount + LoanPayment.interest_amount), 0))
+        select(func.coalesce(func.sum(LoanPayment.principal_component + LoanPayment.interest_component), 0))
         .join(Loan)
         .where(Loan.user_id == current_user.id, Loan.deleted_at.is_(None))
     )
@@ -89,7 +90,10 @@ async def get_loan_schedule(id: uuid.UUID, db: AsyncSession = Depends(get_db), c
             month_offset -= 12
             year_offset += 1
             
-        p_date = date(year_offset, month_offset, start_date.day)
+        # BUG-022 fix: clamp to max days in target month to prevent ValueError
+        # e.g. a loan started on the 31st would crash in Feb (28 days), Apr (30 days), etc.
+        max_day = calendar.monthrange(year_offset, month_offset)[1]
+        p_date = date(year_offset, month_offset, min(start_date.day, max_day))
         
         schedule.append({
             "month": loan.paid_months + i,
@@ -172,9 +176,10 @@ async def record_payment(id: uuid.UUID, data: LoanPaymentCreate, db: AsyncSessio
     payment = LoanPayment(
         loan_id=loan.id,
         payment_date=data.payment_date,
-        principal_amount=Decimal(principal_component),
-        interest_amount=Decimal(interest_component),
-        notes=data.notes
+        emi_amount=Decimal(amount_paid),
+        principal_component=Decimal(principal_component),
+        interest_component=Decimal(interest_component),
+        balance_after=Decimal(float(loan.outstanding_balance) - principal_component)
     )
     db.add(payment)
     

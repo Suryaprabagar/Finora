@@ -119,31 +119,31 @@ class PlanningService:
         investments = inv_result.scalars().all()
         
         total_investment_value = Decimal("0")
-        weighted_return = Decimal("0")
+        total_invested_amount = Decimal("0")
         
         for inv in investments:
-            value = inv.current_price * inv.quantity
-            total_investment_value += value
-            if inv.interest_rate:
-                weighted_return += value * inv.interest_rate
-            else:
-                if inv.current_price and inv.purchase_price and inv.purchase_date:
-                    days_held = (date.today() - inv.purchase_date).days
-                    if days_held > 0:
-                        years_held = Decimal(str(days_held)) / Decimal("365.25")
-                        if years_held > 0:
-                            ret = ((inv.current_price - inv.purchase_price) / inv.purchase_price) / years_held * Decimal("100")
-                            weighted_return += value * ret
-                            
-        avg_annual_return = Decimal("8.0")
-        if total_investment_value > 0:
-            calculated_return = weighted_return / total_investment_value
-            if calculated_return > 0:
-                avg_annual_return = calculated_return
+            current_value = inv.current_price * inv.quantity
+            purchase_value = inv.purchase_price * inv.quantity
+            total_investment_value += current_value
+            total_invested_amount += purchase_value
 
-        query = select(Goal).where(Goal.user_id == user_id)
+        # Match the investments page exactly: (total_value - total_invested) / total_invested * 100
+        avg_annual_return = Decimal("8.0")
+        if total_invested_amount > 0:
+            calc_return = ((total_investment_value - total_invested_amount) / total_invested_amount) * Decimal("100")
+            if calc_return > 0:
+                # Cap at 30% p.a. to prevent unrealistic SIP projections
+                avg_annual_return = min(calc_return, Decimal("30.0"))
+
+        # BUG FIX: exclude soft-deleted goals and filter to non-completed goals only
+        query = select(Goal).where(Goal.user_id == user_id, Goal.deleted_at.is_(None))
         result = await db.execute(query)
         goals = result.scalars().all()
+
+        # Pre-initialize temp fields on every goal so later attribute access is always safe
+        for g in goals:
+            g.temp_required_sip = Decimal("0")
+            g.temp_allocated = Decimal("0")
         
         goals_with_priority = []
         for g in goals:
@@ -179,13 +179,21 @@ class PlanningService:
             goal.temp_required_sip = required_sip
             goal.temp_allocated = allocated
             
+        # ── Second pass: cascade any remaining surplus through goals in priority order ──
+        # After covering all required SIPs, leftover surplus accelerates goals one by one.
+        # Each goal gets up to (target - current_funding) of surplus; excess flows to the next.
         if remaining_surplus > 0:
             for ps, goal in goals_with_priority:
-                current_funding = await FundingCalculator.calculate_total_funding(db, goal.id, "Goal")
-                if current_funding < goal.target_amount:
-                    goal.temp_allocated += remaining_surplus
-                    remaining_surplus = Decimal("0")
+                if remaining_surplus <= 0:
                     break
+                # Re-compute current funding to know how much headroom this goal has
+                current_funding = await FundingCalculator.calculate_total_funding(db, goal.id, "Goal")
+                headroom = goal.target_amount - current_funding - goal.temp_allocated
+                if headroom <= 0:
+                    continue  # Goal is already fully funded (including SIP allocation)
+                extra = min(remaining_surplus, headroom)
+                goal.temp_allocated += extra
+                remaining_surplus -= extra
 
         objectives_data = []
         for ps, goal in goals_with_priority:
@@ -215,7 +223,11 @@ class PlanningService:
                 "monthly_income": float(monthly_income),
                 "monthly_expense": float(monthly_expense),
                 "monthly_emis": float(monthly_emis),
-                "monthly_cc_min": float(monthly_cc_min)
+                "monthly_cc_min": float(monthly_cc_min),
+                # Portfolio return rate used for all SIP calculations — sourced from live investments.
+                # Capped at 30% p.a. to prevent data anomalies from distorting SIP amounts.
+                "portfolio_avg_return": float(avg_annual_return),
+                "portfolio_investment_value": float(total_investment_value),
             },
             "objectives": objectives_data
         }

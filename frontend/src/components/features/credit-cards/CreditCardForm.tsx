@@ -3,8 +3,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { creditCardsApi } from '@/lib/api'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { creditCardsApi, bankAccountsApi } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import { useEffect } from 'react'
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   bank_name: z.string().min(1, 'Bank Name is required'),
+  bank_account_id: z.string().optional().or(z.literal('')),
   card_number: z.string().min(4, 'Card number must be last 4 digits').max(4, 'Card number must be last 4 digits'),
   credit_limit: z.coerce.number().positive('Credit limit must be positive'),
   outstanding_balance: z.coerce.number().min(0, 'Outstanding balance cannot be negative'),
@@ -33,7 +34,13 @@ interface CreditCardFormProps {
 
 export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardFormProps) {
   const queryClient = useQueryClient()
-  const isEditing = !!initialData
+  const isEditing = !!initialData?.id
+
+  const { data: bankAccountsRes } = useQuery({
+    queryKey: ['bank-accounts'],
+    queryFn: () => bankAccountsApi.list().then(r => r.data),
+  })
+  const bankAccounts = bankAccountsRes?.data || []
 
   const {
     register,
@@ -45,6 +52,7 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
     defaultValues: {
       name: '',
       bank_name: '',
+      bank_account_id: '',
       card_number: '',
       credit_limit: 0,
       outstanding_balance: 0,
@@ -61,6 +69,7 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
       reset({
         name: initialData.name,
         bank_name: initialData.bank_name,
+        bank_account_id: initialData.bank_account_id || '',
         card_number: initialData.card_number || '',
         credit_limit: initialData.credit_limit,
         outstanding_balance: initialData.outstanding_balance,
@@ -86,7 +95,12 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
       onSuccess?.()
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'An error occurred')
+      const detail = error.response?.data?.detail
+      if (Array.isArray(detail)) {
+        toast.error(detail[0].msg || 'Validation Error')
+      } else {
+        toast.error(detail || 'An error occurred')
+      }
     },
   })
 
@@ -98,26 +112,38 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="bank_name">Bank Name *</Label>
-          <Input id="bank_name" placeholder="e.g. ICICI Bank" {...register('bank_name')} />
-          {errors.bank_name && <p className="text-sm text-error">{errors.bank_name.message}</p>}
+          <Label htmlFor="name">Card Name *</Label>
+          <Input id="name" placeholder="e.g. Sapphire Reserve" {...register('name')} />
+          {errors.name && <p className="text-sm text-error">{errors.name.message}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="name">Card Name *</Label>
-          <Input id="name" placeholder="e.g. Coral Credit Card" {...register('name')} />
-          {errors.name && <p className="text-sm text-error">{errors.name.message}</p>}
+          <Label htmlFor="bank_name">Issuer Bank *</Label>
+          <Input id="bank_name" placeholder="e.g. Chase" {...register('bank_name')} />
+          {errors.bank_name && <p className="text-sm text-error">{errors.bank_name.message}</p>}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="card_number">Last 4 Digits *</Label>
-          <Input id="card_number" placeholder="e.g. 5678" {...register('card_number')} />
-          {errors.card_number && <p className="text-sm text-error">{errors.card_number.message}</p>}
+          <Label htmlFor="bank_account_id">Linked Bank Account</Label>
+          <select 
+            id="bank_account_id" 
+            className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+            {...register('bank_account_id')}
+          >
+            <option value="">None (Standalone Card)</option>
+            {bankAccounts.filter((a: any) => a.account_type !== 'cash').map((account: any) => (
+              <option key={account.id} value={account.id}>
+                {account.bank_name || account.name} - {account.name}
+              </option>
+            ))}
+          </select>
+          {errors.bank_account_id && <p className="text-sm text-error">{errors.bank_account_id.message}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="color">Card Color Accent</Label>
-          <Input id="color" type="color" {...register('color')} className="h-10 cursor-pointer" />
+          <Label htmlFor="card_number">Card Number (Last 4)</Label>
+          <Input id="card_number" placeholder="e.g. 4021" maxLength={4} {...register('card_number')} />
+          {errors.card_number && <p className="text-sm text-error">{errors.card_number.message}</p>}
         </div>
       </div>
 
@@ -128,7 +154,7 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
           {errors.credit_limit && <p className="text-sm text-error">{errors.credit_limit.message}</p>}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="outstanding_balance">Outstanding Balance *</Label>
+          <Label htmlFor="outstanding_balance">Current Outstanding Balance *</Label>
           <Input id="outstanding_balance" type="number" step="0.01" {...register('outstanding_balance')} />
           {errors.outstanding_balance && <p className="text-sm text-error">{errors.outstanding_balance.message}</p>}
         </div>
@@ -149,7 +175,7 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="interest_rate">Interest Rate (% APR)</Label>
+          <Label htmlFor="interest_rate">Interest Rate (APR %)</Label>
           <Input id="interest_rate" type="number" step="0.01" {...register('interest_rate')} />
         </div>
         <div className="space-y-2">
@@ -158,7 +184,14 @@ export function CreditCardForm({ initialData, onSuccess, onCancel }: CreditCardF
         </div>
       </div>
 
-      <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white pb-2">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="color">Card Color</Label>
+          <Input id="color" type="color" className="h-10 p-1 cursor-pointer" {...register('color')} />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/30">
         {onCancel && (
           <button type="button" onClick={onCancel} className="btn-secondary" disabled={isSubmitting}>
             Cancel

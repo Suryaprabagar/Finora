@@ -24,8 +24,8 @@ class HealthCalculator:
             
         if not target_date:
             # Without a target date, we can't measure pacing.
-            # If they have some funding, they are on track, otherwise off track.
-            return "On Track" if current_funding > 0 else "Needs Attention"
+            # Return "At Risk" (a known UI status) rather than "Needs Attention" which has no frontend style.
+            return "On Track" if current_funding > 0 else "At Risk"
 
         total_days = (target_date - start_date).days
         if total_days <= 0:

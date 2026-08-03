@@ -6,11 +6,13 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.bank_account import BankAccount
+from app.models.credit_card import CreditCard
 from app.models.category import Category
 from app.dependencies import get_current_user
 from app.schemas.common import APIResponse, Pagination
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Optional, List
 import uuid
 from fastapi.responses import StreamingResponse
@@ -65,8 +67,10 @@ async def get_transactions(
             )
         )
 
-    # Sort
-    sort_col = getattr(Transaction, sort_by, Transaction.date)
+    # BUG-006 fix: only allow known safe column names to prevent ORM attribute injection
+    ALLOWED_SORT_FIELDS = {"date", "amount", "description", "created_at", "merchant", "status", "type"}
+    safe_sort_by = sort_by if sort_by in ALLOWED_SORT_FIELDS else "date"
+    sort_col = getattr(Transaction, safe_sort_by)
     if sort_order == "desc":
         query = query.order_by(desc(sort_col), desc(Transaction.created_at))
     else:
@@ -101,6 +105,14 @@ async def create_transaction(
                 bank_account.balance += transaction.amount
             elif transaction.type == "expense":
                 bank_account.balance -= transaction.amount
+                
+    if data.credit_card_id:
+        credit_card = await db.get(CreditCard, data.credit_card_id)
+        if credit_card and credit_card.user_id == current_user.id:
+            if transaction.type == "expense":
+                credit_card.outstanding_balance += transaction.amount
+            elif transaction.type == "income":
+                credit_card.outstanding_balance = max(0, credit_card.outstanding_balance - transaction.amount)
     
     await db.commit()
     await db.refresh(transaction)
@@ -108,7 +120,7 @@ async def create_transaction(
     # Reload with relationships
     result = await db.execute(
         select(Transaction)
-        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account))
+        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account), selectinload(Transaction.credit_card))
         .where(Transaction.id == transaction.id)
     )
     transaction = result.scalar_one()
@@ -144,20 +156,39 @@ async def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    # Revert old balance
-    if transaction.bank_account_id:
-        old_acc = await db.get(BankAccount, transaction.bank_account_id)
-        if old_acc:
-            if transaction.type == "income":
-                old_acc.balance -= transaction.amount
-            elif transaction.type == "expense":
-                old_acc.balance += transaction.amount
+    # BUG-005 fix: capture ALL old field values before applying any updates.
+    # SQLAlchemy's identity map means db.get(BankAccount, same_id) returns the
+    # *same Python object* both times. If we revert old_acc.balance and then
+    # db.get() the "new" account for apply, we get the already-modified object,
+    # causing double-counting when only the amount (not the account) changed.
+    old_bank_account_id = transaction.bank_account_id
+    old_credit_card_id  = transaction.credit_card_id
+    old_type            = transaction.type
+    old_amount          = transaction.amount
 
+    # Step 1 — revert the old balance using captured pre-update values
+    if old_bank_account_id:
+        old_acc = await db.get(BankAccount, old_bank_account_id)
+        if old_acc:
+            if old_type == "income":
+                old_acc.balance -= old_amount
+            elif old_type == "expense":
+                old_acc.balance += old_amount
+
+    if old_credit_card_id:
+        old_cc = await db.get(CreditCard, old_credit_card_id)
+        if old_cc:
+            if old_type == "expense":
+                old_cc.outstanding_balance = max(Decimal("0"), old_cc.outstanding_balance - old_amount)
+            elif old_type == "income":
+                old_cc.outstanding_balance += old_amount
+
+    # Step 2 — apply the incoming field updates
     update_data = data.model_dump(exclude_unset=True)
     for k, v in update_data.items():
         setattr(transaction, k, v)
-        
-    # Apply new balance
+
+    # Step 3 — apply the new balance using the (now-updated) transaction fields
     if transaction.bank_account_id:
         new_acc = await db.get(BankAccount, transaction.bank_account_id)
         if new_acc:
@@ -166,17 +197,25 @@ async def update_transaction(
             elif transaction.type == "expense":
                 new_acc.balance -= transaction.amount
 
+    if transaction.credit_card_id:
+        new_cc = await db.get(CreditCard, transaction.credit_card_id)
+        if new_cc:
+            if transaction.type == "expense":
+                new_cc.outstanding_balance += transaction.amount
+            elif transaction.type == "income":
+                new_cc.outstanding_balance = max(Decimal("0"), new_cc.outstanding_balance - transaction.amount)
+
     await db.commit()
     await db.refresh(transaction)
-    
-    # Reload with relationships
+
+    # Reload with relationships for the response
     result = await db.execute(
         select(Transaction)
-        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account))
+        .options(selectinload(Transaction.category), selectinload(Transaction.bank_account), selectinload(Transaction.credit_card))
         .where(Transaction.id == transaction.id)
     )
     transaction = result.scalar_one()
-    
+
     return APIResponse(data=TransactionResponse.model_validate(transaction).model_dump(), message="Transaction updated")
 
 @router.delete("/{id}")
@@ -200,6 +239,14 @@ async def delete_transaction(
                 acc.balance -= transaction.amount
             elif transaction.type == "expense":
                 acc.balance += transaction.amount
+                
+    if transaction.credit_card_id:
+        cc = await db.get(CreditCard, transaction.credit_card_id)
+        if cc:
+            if transaction.type == "expense":
+                cc.outstanding_balance = max(0, cc.outstanding_balance - transaction.amount)
+            elif transaction.type == "income":
+                cc.outstanding_balance += transaction.amount
 
     transaction.deleted_at = datetime.now(timezone.utc)
     await db.commit()

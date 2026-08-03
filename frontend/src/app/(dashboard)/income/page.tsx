@@ -45,6 +45,11 @@ export default function IncomePage() {
     queryFn: () => incomeApi.list().then(r => r.data),
   })
 
+  const { data: trendsRes, isLoading: isTrendsLoading } = useQuery({
+    queryKey: ['income-trends'],
+    queryFn: () => incomeApi.getTrends().then(r => r.data),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => incomeApi.delete(id),
     onSuccess: () => {
@@ -62,6 +67,7 @@ export default function IncomePage() {
 
   const summary = summaryRes?.data || { monthly_total: 0, annual_total: 0, recurring_count: 0, pending_count: 0, largest_source: { name: 'None', amount: 0 } }
   const categoriesData = categoriesRes?.data || []
+  const trendsData = trendsRes?.data || []
   const incomes = useMemo(() => {
     const list = listRes?.data || []
     if (!searchTerm) return list
@@ -137,8 +143,8 @@ export default function IncomePage() {
 
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px] bg-surface-container-low border-none shadow-none">
           <p className="text-[10px] font-bold tracking-widest text-primary uppercase mb-3">Largest Source</p>
-          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(summary.largest_source.amount)}</h3>
-          <p className="text-[10px] text-on-surface-variant font-medium">{summary.largest_source.name}</p>
+          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(summary.largest_source?.amount || 0)}</h3>
+          <p className="text-[10px] text-on-surface-variant font-medium">{summary.largest_source?.name || 'None'}</p>
         </div>
       </div>
 
@@ -162,29 +168,31 @@ export default function IncomePage() {
             <div className="h-[220px] flex items-end justify-between gap-1 sm:gap-2 px-1 relative">
               <div className="absolute top-[20%] left-0 right-0 border-t border-dashed border-outline-variant z-0"></div>
               
-              {/* Dummy Bars */}
+              {/* Dynamic Bars */}
               {(() => {
-                const baseData = [40, 50, 45, 60, 55, 70, 75, 85, 95, 90, 80, 100];
-                const baseMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                if (!trendsData.length || isTrendsLoading) return null;
                 
-                let data = baseData;
-                let months = baseMonths;
+                let data = trendsData;
                 if (trendPeriod === '6M') {
-                  data = baseData.slice(-6);
-                  months = baseMonths.slice(-6);
+                  data = trendsData.slice(-6);
+                } else if (trendPeriod === '1Y' || trendPeriod === 'All') {
+                  data = trendsData.slice(-12);
                 }
                 
-                return data.map((h, i, arr) => {
-                  const isHighest = h === Math.max(...arr);
-                  const month = months[i];
-                  const showLabel = trendPeriod === '6M' ? true : (i === 0 || i === 5 || i === 10 || i === 11);
-                  const val = summary.monthly_total * (h / 100);
+                const maxAmount = Math.max(...data.map((d: any) => d.amount), 1); // Avoid div by 0
+                
+                return data.map((d: any, i: number, arr: any[]) => {
+                  const isHighest = d.amount === Math.max(...arr.map(x => x.amount)) && d.amount > 0;
+                  const month = d.month;
+                  const showLabel = trendPeriod === '6M' ? true : (i === 0 || i === Math.floor(arr.length / 2) || i === arr.length - 1);
+                  const h = (d.amount / maxAmount) * 100;
+                  
                   return (
-                    <div key={i} className="w-full h-full max-w-[48px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
-                      <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${h}%` }}>
+                    <div key={`${d.month}-${d.year}`} className="w-full h-full max-w-[48px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
+                      <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${Math.max(h, 2)}%` }}>
                         {/* Tooltip on hover */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none">
-                          {isHighest ? 'Highest' : month}:<br/>{formatCurrency(val)}
+                          {d.month} {d.year}:<br/>{formatCurrency(d.amount)}
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
                         </div>
                       </div>

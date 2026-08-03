@@ -110,23 +110,25 @@ async def transfer_funds(
     if not from_acc or not to_acc:
         raise HTTPException(status_code=404, detail="One or both bank accounts not found")
         
+    # BUG-014 fix: use type="transfer" for both legs of the transfer so they
+    # are excluded from income/expense aggregations and don't inflate monthly totals.
     # Create withdrawal
     withdrawal = Transaction(
         user_id=current_user.id,
         bank_account_id=from_acc.id,
         amount=data.amount,
-        type="expense",
+        type="transfer",
         date=data.date,
         description=data.description or f"Transfer to {to_acc.name}",
         status="completed"
     )
-    
+
     # Create deposit
     deposit = Transaction(
         user_id=current_user.id,
         bank_account_id=to_acc.id,
         amount=data.amount,
-        type="income",
+        type="transfer",
         date=data.date,
         description=data.description or f"Transfer from {from_acc.name}",
         status="completed"
