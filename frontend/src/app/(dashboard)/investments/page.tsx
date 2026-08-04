@@ -197,26 +197,52 @@ export default function InvestmentsPage() {
             </div>
           </div>
           <div className="flex-1 w-full relative min-h-[220px]">
-            {analytics?.growth_history && analytics.growth_history.length > 0 ? (
-              <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox="0 0 800 200">
-                <defs>
-                  <linearGradient id="gradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: 'rgba(139, 94, 60, 0.2)' }} />
-                    <stop offset="100%" style={{ stopColor: 'rgba(139, 94, 60, 0)' }} />
-                  </linearGradient>
-                </defs>
-                <path d="M0,180 C50,170 100,165 150,140 S250,150 300,120 S400,110 450,80 S550,90 600,60 S700,50 800,20 L800,200 L0,200 Z" fill="url(#gradient)"></path>
-                <path d="M0,180 C50,170 100,165 150,140 S250,150 300,120 S400,110 450,80 S550,90 600,60 S700,50 800,20" fill="none" stroke="#8B5E3C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"></path>
-              </svg>
-            ) : (
+            {analytics?.growth_history && analytics.growth_history.length > 0 ? (() => {
+              const pts = analytics.growth_history
+              const W = 800, H = 200, PAD = 10
+              const minV = Math.min(...pts.map((p: any) => p.value))
+              const maxV = Math.max(...pts.map((p: any) => p.value))
+              const range = maxV - minV || 1
+              const coords = pts.map((p: any, i: number) => ({
+                x: (i / Math.max(pts.length - 1, 1)) * W,
+                y: PAD + (1 - (p.value - minV) / range) * (H - PAD * 2)
+              }))
+              const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+              const fillPath = `${linePath} L${W},${H} L0,${H} Z`
+              // Show up to 7 evenly spaced date labels
+              const labelIdxs = pts.length <= 7
+                ? pts.map((_: any, i: number) => i)
+                : [0, Math.round(pts.length * 0.17), Math.round(pts.length * 0.33), Math.round(pts.length * 0.5), Math.round(pts.length * 0.67), Math.round(pts.length * 0.83), pts.length - 1]
+              return (
+                <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
+                  <defs>
+                    <linearGradient id="wealthGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+                      <stop offset="0%" style={{ stopColor: 'rgba(139, 94, 60, 0.25)' }} />
+                      <stop offset="100%" style={{ stopColor: 'rgba(139, 94, 60, 0)' }} />
+                    </linearGradient>
+                  </defs>
+                  <path d={fillPath} fill="url(#wealthGradient)" />
+                  <path d={linePath} fill="none" stroke="#8B5E3C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  {coords.map((c, i) => (
+                    <circle key={i} cx={c.x} cy={c.y} r="3" fill="#8B5E3C" opacity="0.7" />
+                  ))}
+                </svg>
+              )
+            })() : (
               <div className="flex items-center justify-center h-full text-sm text-on-surface-variant">
                 No growth history available yet.
               </div>
             )}
             <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-on-surface-variant px-2 pt-4 font-bold uppercase tracking-wider">
-              {analytics?.growth_history?.slice(0, 7).map((snap: any, i: number) => (
-                <span key={i}>{new Date(snap.date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</span>
-              ))}
+              {analytics?.growth_history?.length > 0 && (() => {
+                const pts = analytics.growth_history
+                const labelIdxs = pts.length <= 7
+                  ? pts.map((_: any, i: number) => i)
+                  : [0, Math.round(pts.length * 0.17), Math.round(pts.length * 0.33), Math.round(pts.length * 0.5), Math.round(pts.length * 0.67), Math.round(pts.length * 0.83), pts.length - 1]
+                return labelIdxs.map((idx: number) => (
+                  <span key={idx}>{new Date(pts[idx].date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</span>
+                ))
+              })()}
             </div>
           </div>
         </div>

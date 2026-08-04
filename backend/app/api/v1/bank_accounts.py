@@ -64,8 +64,6 @@ async def update_bank_account(
         raise HTTPException(status_code=404, detail="Bank account not found")
 
     update_data = data.model_dump(exclude_unset=True)
-    # Don't update balance directly via PUT
-    update_data.pop('balance', None)
     for k, v in update_data.items():
         setattr(account, k, v)
         

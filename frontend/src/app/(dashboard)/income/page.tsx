@@ -68,16 +68,41 @@ export default function IncomePage() {
   const summary = summaryRes?.data || { monthly_total: 0, annual_total: 0, recurring_count: 0, pending_count: 0, largest_source: { name: 'None', amount: 0 } }
   const categoriesData = categoriesRes?.data || []
   const trendsData = trendsRes?.data || []
+  const allIncomes = listRes?.data || []
   const incomes = useMemo(() => {
-    const list = listRes?.data || []
-    if (!searchTerm) return list
+    if (!searchTerm) return allIncomes
     const term = searchTerm.toLowerCase()
-    return list.filter((tx: any) => 
+    return allIncomes.filter((tx: any) => 
       tx.description?.toLowerCase().includes(term) ||
       tx.category?.name?.toLowerCase().includes(term) ||
       tx.bank_account?.name?.toLowerCase().includes(term)
     )
-  }, [listRes?.data, searchTerm])
+  }, [allIncomes, searchTerm])
+
+  // Compute pending income amount from the live income list
+  const pendingAmount = useMemo(() =>
+    allIncomes.filter((tx: any) => tx.status === 'pending').reduce((sum: number, tx: any) => sum + Number(tx.amount || 0), 0)
+  , [allIncomes])
+
+  // Compute quarterly comparison from trends (current quarter = last 3 months, prev = 3 before that)
+  const { currentQ, prevQ, qGrowthPct } = useMemo(() => {
+    if (trendsData.length < 6) return { currentQ: 0, prevQ: 0, qGrowthPct: null }
+    const last6 = trendsData.slice(-6)
+    const curr = last6.slice(-3).reduce((s: number, d: any) => s + d.amount, 0)
+    const prev = last6.slice(0, 3).reduce((s: number, d: any) => s + d.amount, 0)
+    const pct = prev > 0 ? ((curr - prev) / prev) * 100 : null
+    return { currentQ: curr, prevQ: prev, qGrowthPct: pct }
+  }, [trendsData])
+
+  // Compute income growth: last month vs month before
+  const { growthAmt, growthPct } = useMemo(() => {
+    if (trendsData.length < 2) return { growthAmt: 0, growthPct: null }
+    const last  = trendsData[trendsData.length - 1]
+    const prev  = trendsData[trendsData.length - 2]
+    const amt   = last.amount - prev.amount
+    const pct   = prev.amount > 0 ? (amt / prev.amount) * 100 : null
+    return { growthAmt: amt, growthPct: pct }
+  }, [trendsData])
 
   const handleAdd = () => {
     setEditingTransaction({ type: 'income' })
@@ -123,22 +148,19 @@ export default function IncomePage() {
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
           <p className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Annual Income</p>
           <h3 className="text-[22px] font-bold font-display text-on-surface mb-2">{formatCurrency(summary.annual_total)}</h3>
-          <div className="w-full bg-surface-variant h-1 rounded-full overflow-hidden mb-2 mt-auto">
-            <div className="bg-primary h-full rounded-full" style={{ width: '82%' }}></div>
-          </div>
-          <p className="text-[10px] text-on-surface-variant font-medium">82% of target</p>
+          <p className="text-[10px] text-on-surface-variant font-medium mt-auto">Year-to-date total</p>
         </div>
 
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
           <p className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Recurring Income</p>
-          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(summary.monthly_total * 0.82)}</h3>
-          <p className="text-[10px] text-on-surface-variant italic font-medium">8 sources active</p>
+          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{summary.recurring_count}</h3>
+          <p className="text-[10px] text-on-surface-variant italic font-medium">{summary.recurring_count === 1 ? 'source active' : 'sources active'}</p>
         </div>
 
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
           <p className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-3">Pending Income</p>
-          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(2100)}</h3>
-          <p className="text-[10px] text-tertiary font-medium">3 deposits due</p>
+          <h3 className="text-[22px] font-bold font-display text-on-surface mb-1 mt-auto">{formatCurrency(pendingAmount)}</h3>
+          <p className="text-[10px] text-tertiary font-medium">{summary.pending_count} deposit{summary.pending_count !== 1 ? 's' : ''} due</p>
         </div>
 
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px] bg-surface-container-low border-none shadow-none">
@@ -210,34 +232,52 @@ export default function IncomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="finora-card p-6 flex flex-col justify-center">
               <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-5">Quarterly Comparison</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-on-surface-variant font-medium">Q4 (Current)</span>
-                  <span className="font-bold text-on-surface">{formatCurrency(37350)}</span>
+              {trendsData.length < 6 ? (
+                <p className="text-[12px] text-on-surface-variant italic">Not enough data yet (need 6 months)</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-on-surface-variant font-medium">Last 3 Months</span>
+                    <span className="font-bold text-on-surface">{formatCurrency(currentQ)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-on-surface-variant font-medium">Prior 3 Months</span>
+                    <span className="font-bold text-on-surface">{formatCurrency(prevQ)}</span>
+                  </div>
+                  <div className="pt-4 border-t border-surface-container flex justify-between items-center text-[13px]">
+                    <span className="font-bold text-inverse-surface">Growth</span>
+                    {qGrowthPct !== null ? (
+                      <span className={`font-bold ${qGrowthPct >= 0 ? 'text-tertiary' : 'text-secondary'}`}>
+                        {qGrowthPct >= 0 ? '+' : ''}{qGrowthPct.toFixed(1)}%
+                      </span>
+                    ) : <span className="text-on-surface-variant text-[12px]">N/A</span>}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-on-surface-variant font-medium">Q3 (Previous)</span>
-                  <span className="font-bold text-on-surface">{formatCurrency(34200)}</span>
-                </div>
-                <div className="pt-4 border-t border-surface-container flex justify-between items-center text-[13px]">
-                  <span className="font-bold text-inverse-surface">Growth</span>
-                  <span className="font-bold text-tertiary">+9.2%</span>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="finora-card p-6 flex items-center justify-between sm:justify-start sm:gap-8">
               <div className="w-24 h-24 relative flex items-center justify-center shrink-0">
                 <svg className="absolute inset-0 w-full h-full -rotate-90">
                   <circle cx="48" cy="48" r="43" fill="none" className="stroke-surface-container" strokeWidth="5" />
-                  <circle cx="48" cy="48" r="43" fill="none" className="stroke-primary" strokeWidth="5" strokeDasharray="270" strokeDashoffset="67" strokeLinecap="round" />
+                  {growthPct !== null && (
+                    <circle cx="48" cy="48" r="43" fill="none" className="stroke-primary" strokeWidth="5"
+                      strokeDasharray="270"
+                      strokeDashoffset={270 - Math.min(270, Math.max(0, (Math.abs(growthPct) / 100) * 270))}
+                      strokeLinecap="round"
+                    />
+                  )}
                 </svg>
-                <span className="text-[15px] font-bold text-on-surface z-10">75%</span>
+                <span className="text-[15px] font-bold text-on-surface z-10">
+                  {growthPct !== null ? `${growthPct > 0 ? '+' : ''}${growthPct.toFixed(0)}%` : '—'}
+                </span>
               </div>
               <div>
                 <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-2">Income Growth</h3>
-                <p className="text-[22px] font-bold font-display text-on-surface mb-1">+{formatCurrency(2450)}</p>
-                <p className="text-[11px] text-on-surface-variant font-medium leading-tight">Above yearly<br/>baseline</p>
+                <p className={`text-[22px] font-bold font-display mb-1 ${growthAmt >= 0 ? 'text-on-surface' : 'text-secondary'}`}>
+                  {growthAmt >= 0 ? '+' : ''}{formatCurrency(Math.abs(growthAmt))}
+                </p>
+                <p className="text-[11px] text-on-surface-variant font-medium leading-tight">vs. previous<br/>month</p>
               </div>
             </div>
           </div>
