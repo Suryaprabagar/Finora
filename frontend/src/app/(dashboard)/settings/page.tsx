@@ -329,30 +329,33 @@ export default function SettingsPage() {
         </div>
 
         {/* Notification Channels */}
-        <div className="finora-card p-6 border border-outline-variant/30">
-          <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase mb-6">Notification Channels</h3>
+        <div className="finora-card p-6 border border-outline-variant/30 opacity-60">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Notification Channels</h3>
+            <span className="text-[10px] font-bold px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
+          </div>
           
           <div className="space-y-4 pb-6 border-b border-outline-variant/30">
-            <label className="flex items-center justify-between cursor-pointer group">
+            <label className="flex items-center justify-between cursor-not-allowed group">
                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px] group-hover:text-[#795548] transition-colors">mail</span>
+                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">mail</span>
                   <span className="text-sm text-[#1f1b18]">Email Digests</span>
                </div>
-               <input type="checkbox" defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+               <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
-            <label className="flex items-center justify-between cursor-pointer group">
+            <label className="flex items-center justify-between cursor-not-allowed group">
                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px] group-hover:text-[#795548] transition-colors">notifications_active</span>
+                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">notifications_active</span>
                   <span className="text-sm text-[#1f1b18]">Real-time Push</span>
                </div>
-               <input type="checkbox" defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+               <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
-            <label className="flex items-center justify-between cursor-pointer group">
+            <label className="flex items-center justify-between cursor-not-allowed group">
                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px] group-hover:text-[#795548] transition-colors">sms</span>
+                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">sms</span>
                   <span className="text-sm text-[#1f1b18]">SMS Critical Alerts</span>
                </div>
-               <input type="checkbox" className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+               <input type="checkbox" disabled className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
           </div>
           <p className="text-[10px] text-on-surface-variant italic mt-4">SMS alerts may incur carrier charges.</p>

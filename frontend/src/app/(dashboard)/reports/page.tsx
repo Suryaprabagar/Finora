@@ -33,7 +33,8 @@ export default function ReportsPage() {
   const expensesData = analytics?.expenses || []
   const budgetData = analytics?.budget || { budget: 0, actual: 0, variance: 0 }
   const cashFlowData = analytics?.cashflow || []
-  const investmentsData = analytics?.investments || { allocation: {}, sharpe_ratio: 0, volatility: 0 }
+  const investmentsData = analytics?.investments || { allocation: {}, sharpe_ratio: null, volatility: null }
+  const netWorthGrowthPct: number | null = analytics?.net_worth_growth_pct ?? null
   const reports = reportsRes?.data?.data || []
 
   const columnHelper = createColumnHelper<any>()
@@ -147,9 +148,15 @@ export default function ReportsPage() {
             <span className="material-symbols-outlined text-on-surface-variant text-[18px]">show_chart</span>
           </div>
           <div className="mb-1">
-            <span className="text-2xl font-display font-bold text-[#5d4037]">+12.4%</span>
+            {netWorthGrowthPct !== null ? (
+              <span className={`text-2xl font-display font-bold ${netWorthGrowthPct >= 0 ? 'text-[#5d4037]' : 'text-error'}`}>
+                {netWorthGrowthPct >= 0 ? '+' : ''}{netWorthGrowthPct}%
+              </span>
+            ) : (
+              <span className="text-2xl font-display font-bold text-on-surface-variant">N/A</span>
+            )}
           </div>
-          <p className="text-xs text-on-surface-variant mt-1">Annualized Growth</p>
+          <p className="text-xs text-on-surface-variant mt-1">{netWorthGrowthPct !== null ? 'Portfolio Growth' : 'No snapshot data yet'}</p>
         </div>
       </div>
 
@@ -271,11 +278,15 @@ export default function ReportsPage() {
           <div className="grid grid-cols-2 gap-4 mt-auto">
              <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
                 <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Sharpe Ratio</p>
-                <p className="text-xl font-display font-semibold text-[#1f1b18]">{investmentsData.sharpe_ratio}</p>
+                <p className="text-xl font-display font-semibold text-[#1f1b18]">
+                  {investmentsData.sharpe_ratio !== null && investmentsData.sharpe_ratio !== undefined ? investmentsData.sharpe_ratio : 'N/A'}
+                </p>
              </div>
              <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
                 <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Volatility</p>
-                <p className="text-xl font-display font-semibold text-[#1f1b18]">{investmentsData.volatility}%</p>
+                <p className="text-xl font-display font-semibold text-[#1f1b18]">
+                  {investmentsData.volatility !== null && investmentsData.volatility !== undefined ? `${investmentsData.volatility}%` : 'N/A'}
+                </p>
              </div>
           </div>
         </div>

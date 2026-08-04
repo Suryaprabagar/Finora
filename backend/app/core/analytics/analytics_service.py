@@ -148,6 +148,15 @@ class AnalyticsService:
         investments = inv_res.scalars().all()
         allocation  = AllocationService.calculate_allocation(investments)
 
+        # Compute real net worth growth from portfolio snapshots (no hardcoded values)
+        growth_history = await PortfolioService.get_growth_history(db, user_id)
+        net_worth_growth_pct: float | None = None
+        if growth_history and len(growth_history) >= 2:
+            first_val = growth_history[0]["value"]
+            last_val  = growth_history[-1]["value"]
+            if first_val > 0:
+                net_worth_growth_pct = round(((last_val - first_val) / first_val) * 100, 1)
+
         return {
             "income": income_data or [
                 {'name': 'Jan', 'value': 2500}, {'name': 'Feb', 'value': 3000},
@@ -162,9 +171,12 @@ class AnalyticsService:
             ],
             "budget":   budget_data if total_budget > 0 else {"budget": 5000, "actual": 6200, "variance": -1200},
             "cashflow": cashflow_data,
+            "net_worth_growth_pct": net_worth_growth_pct,
             "investments": {
-                "allocation":   allocation["distribution"] if allocation["distribution"] else {"Stocks": 60, "Bonds": 25, "Crypto": 15},
-                "sharpe_ratio": 1.82,
-                "volatility":   8.4
+                "allocation": allocation["distribution"] if allocation["distribution"] else {"Stocks": 60, "Bonds": 25, "Crypto": 15},
+                # NOTE: sharpe_ratio and volatility require historical return series which are not yet tracked.
+                # These are left as placeholders until daily price feeds are integrated.
+                "sharpe_ratio": None,
+                "volatility":   None
             }
         }
