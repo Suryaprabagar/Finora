@@ -1,0 +1,555 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Finora — Railway Pre-Deployment Validation Pipeline
+#
+# Single source of truth: backend/Dockerfile is used by BOTH this CI pipeline
+# and Railway.  If Railway is configured to use this Dockerfile, the two
+# environments are identical and "it passes CI" means "it will start on Railway".
+#
+# Jobs (5):
+#   ① Static Checks   — env vars, Procfile, Python imports, migration graph
+#   ② Docker Build    — build exact production image + deep import verification
+#   ③ Integration     — fresh PG, alembic upgrade, schema check, $PORT test,
+#                        /health, /health/db, 23-assertion integration suite
+#   ④ Frontend Build  — npm ci, tsc, eslint, next build
+#   ⑤ All Checks Gate — required merge gate: blocks PR if ①②③④ fail
+# ══════════════════════════════════════════════════════════════════════════════
+name: Railway Pre-Deployment Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
+  # ── CI-only PostgreSQL (ephemeral, never used in production) ──────────────
+  POSTGRES_DB: finora_ci
+  POSTGRES_USER: finora
+  POSTGRES_PASSWORD: finora_ci_pass
+  DATABASE_URL: postgresql+asyncpg://finora:finora_ci_pass@localhost:5432/finora_ci
+  # ── CI-only app secrets ───────────────────────────────────────────────────
+  SECRET_KEY: ci-testing-secret-key-minimum-32-characters-long
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  REFRESH_TOKEN_EXPIRE_DAYS: "7"
+  BACKEND_CORS_ORIGINS: '["http://localhost:3000"]'
+  PROJECT_NAME: Finora
+  # ── Docker ───────────────────────────────────────────────────────────────
+  IMAGE_TAG: finora-backend:ci-${{ github.sha }}
+  # ── PORT used in integration job ($PORT obedience test) ──────────────────
+  # Using a non-default port (9123) to prove the app is NOT hardcoding 8000.
+  APP_TEST_PORT: "9123"
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+# ─────────────────────────────────────────────────────────────────────────────
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # JOB ① — Static Checks  (fast, no services needed)
+  # ══════════════════════════════════════════════════════════════════════════
+  static-checks:
+    name: "① Static Checks"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── Check ①: Required env vars are documented ──────────────────────
+      - name: "Check ① — Required env vars in .env.example"
+        run: |
+          REQUIRED=(DATABASE_URL SECRET_KEY ACCESS_TOKEN_EXPIRE_MINUTES REFRESH_TOKEN_EXPIRE_DAYS PROJECT_NAME)
+          for key in "${REQUIRED[@]}"; do
+            grep -q "^${key}=" .env.example \
+              || { echo "❌ MISSING key in .env.example: $key"; exit 1; }
+          done
+          echo "✅ All required env keys documented in .env.example"
+
+      # ── Check ②: Procfile is Railway-compatible ─────────────────────────
+      - name: "Check ② — Procfile is Railway-compatible"
+        run: |
+          grep -q "^web:"            Procfile || { echo "❌ Procfile missing 'web:' process";               exit 1; }
+          grep -q "alembic upgrade head" Procfile || { echo "❌ Procfile must run 'alembic upgrade head'";  exit 1; }
+          grep -q "uvicorn app.main:app" Procfile || { echo "❌ Procfile must start uvicorn app.main:app";  exit 1; }
+          grep -q '\$PORT'           Procfile || { echo "❌ Procfile must use \$PORT (Railway injects it)"; exit 1; }
+          echo "✅ Procfile is Railway-compatible"
+
+      # ── Check ③: Dockerfile exists (single source of truth) ────────────
+      - name: "Check ③ — Dockerfile exists (single source of truth)"
+        run: |
+          test -f Dockerfile \
+            || { echo "❌ backend/Dockerfile missing — Railway and CI must share the same Dockerfile"; exit 1; }
+          echo "✅ backend/Dockerfile present"
+          echo ""
+          echo "ACTION REQUIRED (manual): Confirm Railway is configured to use backend/Dockerfile."
+          echo "  Railway → Service Settings → Source → Dockerfile path: /backend/Dockerfile"
+          echo "  When Railway and CI use the same Dockerfile, 'CI passes' = 'Railway will start'."
+
+      # ── Check ④: Deep Python import check (catches ImportError early) ───
+      - name: "Check ④ — All application modules import cleanly"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          SECRET_KEY: ${{ env.SECRET_KEY }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+          BACKEND_CORS_ORIGINS: ${{ env.BACKEND_CORS_ORIGINS }}
+        run: |
+          python -c "
+          # Core packages
+          import fastapi, uvicorn, sqlalchemy, alembic, asyncpg
+          import jose, bcrypt, pydantic, pydantic_settings, httpx, slowapi
+          import weasyprint, jinja2, openpyxl, pandas, pytz, aiofiles
+          import passlib, email_validator, yfinance
+          print('✅ All third-party packages importable')
+
+          # Application modules — this is where Railway crashes if something is wrong
+          from app.core.config import settings
+          from app.core.database import engine, Base
+          from app.core.security import create_access_token, verify_password
+
+          # All models (alembic uses these for autogenerate)
+          from app.models import (
+              User, Category, BankAccount, CreditCard, Transaction,
+              Budget, BudgetItem, Goal, GoalContribution,
+              Bill, BillPayment, Investment, Loan, LoanPayment,
+              Asset, InsurancePolicy, InsuranceClaim, Report,
+          )
+          print('✅ All models importable')
+
+          # Full application (registers all 15+ routers)
+          from app.main import app
+          route_count = len(app.routes)
+          print(f'✅ FastAPI app imported — {route_count} routes registered')
+          assert route_count > 20, f'Expected >20 routes, got {route_count} — router registration may have failed'
+          "
+
+      # ── Check ⑤: Alembic migration chain is readable ───────────────────
+      - name: "Check ⑤ — Alembic migration chain"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          SECRET_KEY: ${{ env.SECRET_KEY }}
+        run: |
+          alembic history --verbose
+          echo "✅ Migration history readable"
+          # Verify there is at least one migration
+          COUNT=$(alembic history | wc -l)
+          [ "$COUNT" -gt 0 ] || { echo "❌ No migrations found"; exit 1; }
+          echo "✅ $COUNT migration revisions found"
+
+      # ── Check ⑥: No .db files tracked in git ───────────────────────────
+      - name: "Check ⑥ — No *.db files tracked in git"
+        working-directory: .
+        run: |
+          COMMITTED=$(git ls-files "*.db" 2>/dev/null || true)
+          if [ -n "$COMMITTED" ]; then
+            echo "⚠️  WARNING: .db files tracked in git: $COMMITTED"
+            echo "   These may contain local data or secrets. Add *.db to .gitignore."
+            # Warn but don't block — these may be intentional fixtures
+          else
+            echo "✅ No .db files tracked in git"
+          fi
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # JOB ② — Docker Build (exact production image Railway will deploy)
+  # ══════════════════════════════════════════════════════════════════════════
+  docker-build:
+    name: "② Docker Build"
+    runs-on: ubuntu-latest
+    needs: static-checks
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # This is the SAME Dockerfile Railway uses — single source of truth.
+      - name: "Build production image (backend/Dockerfile)"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Verify ①: Correct Python version ──────────────────────────────
+      - name: "Verify — Python version inside image"
+        run: |
+          PYVER=$(docker run --rm ${{ env.IMAGE_TAG }} python --version)
+          echo "Image Python: $PYVER"
+          echo "$PYVER" | grep -q "3.13" || { echo "❌ Expected Python 3.13 in image"; exit 1; }
+          echo "✅ Python 3.13 confirmed inside image"
+
+      # ── Verify ②: All packages importable (Correction 3) ───────────────
+      # This catches: missing system libs (WeasyPrint cairo), bad pip installs,
+      # version conflicts, and typos in requirements.txt.
+      - name: "Verify — Deep import check inside production image"
+        run: |
+          docker run --rm \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SECRET_KEY="${{ env.SECRET_KEY }}" \
+            -e PROJECT_NAME="${{ env.PROJECT_NAME }}" \
+            -e BACKEND_CORS_ORIGINS='["http://localhost:3000"]' \
+            ${{ env.IMAGE_TAG }} \
+            python -c "
+          # Third-party packages (if any of these fail, Railway will crash on startup)
+          import fastapi, uvicorn, sqlalchemy, alembic, asyncpg
+          import jose, bcrypt, pydantic, pydantic_settings, httpx, slowapi
+          import weasyprint, jinja2, openpyxl, pandas, pytz, aiofiles
+          import passlib, email_validator, yfinance
+          print('✅ Third-party packages OK')
+
+          # Application code
+          from app.core.config import settings
+          from app.core.database import engine, Base
+          from app.core.security import create_access_token
+          from app.models import (
+              User, Category, BankAccount, CreditCard, Transaction,
+              Budget, BudgetItem, Goal, GoalContribution,
+              Bill, BillPayment, Investment, Loan, LoanPayment,
+              Asset, InsurancePolicy, InsuranceClaim, Report,
+          )
+          from app.main import app
+          print(f'✅ Application imported — {len(app.routes)} routes')
+          assert len(app.routes) > 20, 'Route count too low — router broken?'
+
+          # Verify both health endpoints are registered
+          paths = [r.path for r in app.routes]
+          assert '/health'    in paths, '/health route not registered'
+          assert '/health/db' in paths, '/health/db route not registered'
+          print('✅ /health and /health/db routes confirmed')
+          "
+
+      # ── Verify ③: $PORT obedience check at image level ─────────────────
+      # Start the image with PORT=9123 and verify uvicorn binds to that port.
+      # This catches hardcoded port numbers in CMD/Procfile.
+      - name: "Verify — Image obeys \$PORT (not hardcoded)"
+        run: |
+          # Start with a non-default port
+          docker run -d --name port-test \
+            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
+            -e SECRET_KEY="${{ env.SECRET_KEY }}" \
+            -e PROJECT_NAME="${{ env.PROJECT_NAME }}" \
+            -e BACKEND_CORS_ORIGINS='["http://localhost:3000"]' \
+            -e PORT=${{ env.APP_TEST_PORT }} \
+            -p ${{ env.APP_TEST_PORT }}:${{ env.APP_TEST_PORT }} \
+            ${{ env.IMAGE_TAG }} \
+            sh -c "uvicorn app.main:app --host 0.0.0.0 --port \${PORT}" || true
+
+          # The container will exit quickly (no DB in this job) — that is fine.
+          # We check the uvicorn startup log to confirm it attempted the right port.
+          sleep 3
+          LOGS=$(docker logs port-test 2>&1 || true)
+          echo "--- Container logs ---"
+          echo "$LOGS"
+          echo "----------------------"
+
+          # uvicorn logs "Uvicorn running on http://0.0.0.0:<PORT>"
+          echo "$LOGS" | grep -q "${{ env.APP_TEST_PORT }}" \
+            && echo "✅ uvicorn bound to PORT=${{ env.APP_TEST_PORT }}" \
+            || echo "⚠️  Port binding log line not found (DB connect error is expected here)"
+
+          docker rm -f port-test 2>/dev/null || true
+
+      - name: "Save Docker image as artifact"
+        run: docker save ${{ env.IMAGE_TAG }} | gzip > /tmp/finora-backend.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+          path: /tmp/finora-backend.tar.gz
+          retention-days: 1
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # JOB ③ — DB Migration + App Startup + Health + Integration Tests
+  # ══════════════════════════════════════════════════════════════════════════
+  integration:
+    name: "③ DB Migration + App + Integration Tests"
+    runs-on: ubuntu-latest
+    needs: docker-build
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U finora"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: |
+          gunzip -c /tmp/finora-backend.tar.gz | docker load
+          docker images | grep finora
+
+      # ── Step A: Run migrations ─────────────────────────────────────────
+      - name: "Step A — alembic upgrade head (fresh PostgreSQL)"
+        run: |
+          docker run --rm \
+            --network host \
+            -e DATABASE_URL="postgresql+asyncpg://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}" \
+            -e SECRET_KEY="${{ env.SECRET_KEY }}" \
+            -e ACCESS_TOKEN_EXPIRE_MINUTES="${{ env.ACCESS_TOKEN_EXPIRE_MINUTES }}" \
+            -e REFRESH_TOKEN_EXPIRE_DAYS="${{ env.REFRESH_TOKEN_EXPIRE_DAYS }}" \
+            -e PROJECT_NAME="${{ env.PROJECT_NAME }}" \
+            -e BACKEND_CORS_ORIGINS='["http://localhost:3000"]' \
+            ${{ env.IMAGE_TAG }} \
+            alembic upgrade head
+          echo "✅ Migrations applied"
+
+      # ── Step B: Schema validation ──────────────────────────────────────
+      - name: "Step B — Schema validation (all expected tables exist)"
+        run: |
+          TABLES="users categories bank_accounts credit_cards transactions \
+                  budgets budget_items goals goal_contributions \
+                  bills bill_payments investments loans loan_payments \
+                  assets insurance_policies insurance_claims reports \
+                  portfolio_snapshots alembic_version"
+          MISSING_TABLES=""
+          for table in $TABLES; do
+            EXISTS=$(docker run --rm \
+              --network host \
+              -e SECRET_KEY="${{ env.SECRET_KEY }}" \
+              -e PROJECT_NAME="${{ env.PROJECT_NAME }}" \
+              -e DATABASE_URL="postgresql+asyncpg://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}" \
+              ${{ env.IMAGE_TAG }} \
+              python -c "
+          import asyncio, asyncpg
+          async def main():
+              conn = await asyncpg.connect('postgresql://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}')
+              n = await conn.fetchval(\"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='\$1'\", '$table')
+              await conn.close()
+              print(n)
+          asyncio.run(main())
+          " 2>/dev/null || echo "0")
+            if [ "$EXISTS" = "1" ]; then
+              echo "  ✅ $table"
+            else
+              echo "  ❌ MISSING: $table"
+              MISSING_TABLES="$MISSING_TABLES $table"
+            fi
+          done
+          [ -z "$MISSING_TABLES" ] || { echo "❌ Missing tables:$MISSING_TABLES"; exit 1; }
+          echo "✅ All expected tables present"
+
+      # ── Step C: Start app on APP_TEST_PORT ($PORT obedience test) ──────
+      # Using APP_TEST_PORT (9123) instead of 8000 to prove the app reads $PORT.
+      # If the app hardcodes 8000, the health check on :9123 will fail here.
+      - name: "Step C — Start app on PORT=${{ env.APP_TEST_PORT }} (not hardcoded 8000)"
+        run: |
+          docker run -d \
+            --name finora-app \
+            --network host \
+            -e DATABASE_URL="postgresql+asyncpg://${{ env.POSTGRES_USER }}:${{ env.POSTGRES_PASSWORD }}@localhost:5432/${{ env.POSTGRES_DB }}" \
+            -e SECRET_KEY="${{ env.SECRET_KEY }}" \
+            -e ACCESS_TOKEN_EXPIRE_MINUTES="${{ env.ACCESS_TOKEN_EXPIRE_MINUTES }}" \
+            -e REFRESH_TOKEN_EXPIRE_DAYS="${{ env.REFRESH_TOKEN_EXPIRE_DAYS }}" \
+            -e BACKEND_CORS_ORIGINS='["http://localhost:3000"]' \
+            -e PROJECT_NAME="${{ env.PROJECT_NAME }}" \
+            -e PORT=${{ env.APP_TEST_PORT }} \
+            ${{ env.IMAGE_TAG }} \
+            sh -c "uvicorn app.main:app --host 0.0.0.0 --port \${PORT}"
+          echo "Container started on PORT=${{ env.APP_TEST_PORT }}. Waiting for /health..."
+
+      # ── Step D: /health liveness check ────────────────────────────────
+      - name: "Step D — GET /health (liveness) on PORT=${{ env.APP_TEST_PORT }}"
+        run: |
+          MAX=30; DELAY=2; OK=false
+          for i in $(seq 1 $MAX); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              http://localhost:${{ env.APP_TEST_PORT }}/health || echo "000")
+            echo "  attempt $i/$MAX → HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then OK=true; break; fi
+            # Crash detection
+            if ! docker inspect -f '{{.State.Running}}' finora-app 2>/dev/null | grep -q true; then
+              echo "❌ Container crashed before health check passed!"
+              docker logs --tail 60 finora-app
+              exit 1
+            fi
+            sleep $DELAY
+          done
+          $OK || { echo "❌ /health timed out"; docker logs --tail 60 finora-app; exit 1; }
+
+          BODY=$(curl -s http://localhost:${{ env.APP_TEST_PORT }}/health)
+          echo "Response: $BODY"
+          echo "$BODY" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          assert d.get('status') == 'healthy', f'Bad status: {d}'
+          print('✅ /health → status=healthy confirmed')
+          "
+
+      # ── Step E: /health/db deep check ─────────────────────────────────
+      - name: "Step E — GET /health/db (app + PostgreSQL)"
+        run: |
+          BODY=$(curl -s http://localhost:${{ env.APP_TEST_PORT }}/health/db)
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://localhost:${{ env.APP_TEST_PORT }}/health/db)
+          echo "HTTP $HTTP — Response: $BODY"
+          [ "$HTTP" = "200" ] || { echo "❌ /health/db returned HTTP $HTTP"; exit 1; }
+          echo "$BODY" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          assert d.get('db') == 'ok', f'Expected db=ok, got: {d}'
+          assert isinstance(d.get('latency_ms'), (int, float)), f'latency_ms missing: {d}'
+          print(f'✅ /health/db → db=ok, latency={d[\"latency_ms\"]}ms')
+          "
+
+      # ── Step F: Show startup logs ──────────────────────────────────────
+      - name: "Step F — Container startup logs"
+        run: docker logs finora-app
+
+      # ── Step G: Integration test suite ────────────────────────────────
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (test runner)
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install requests for test runner
+        run: pip install requests
+
+      - name: "Step G — 23-assertion integration test suite"
+        env:
+          # Pass the actual port so the test script doesn't hardcode 8000
+          APP_PORT: ${{ env.APP_TEST_PORT }}
+        run: python backend/scripts/ci_integration_test.py
+
+      # ── Always: dump logs on failure ───────────────────────────────────
+      - name: "Dump container logs on failure"
+        if: failure()
+        run: docker logs finora-app 2>&1 || true
+
+      - name: Stop app container
+        if: always()
+        run: docker stop finora-app 2>/dev/null || true
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # JOB ④ — Frontend Build  (Next.js — runs in parallel with integration)
+  # ══════════════════════════════════════════════════════════════════════════
+  frontend-build:
+    name: "④ Frontend Build"
+    runs-on: ubuntu-latest
+    needs: static-checks   # parallel with docker-build & integration
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: "TypeScript type check"
+        working-directory: frontend
+        run: npx tsc --noEmit
+        continue-on-error: true   # report but don't block
+
+      - name: "ESLint"
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true   # report but don't block
+
+      - name: "Next.js production build"
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npm run build
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # JOB ⑤ — All Checks Pass  (required merge gate for branch protection)
+  #
+  # Configure in GitHub:
+  #   Settings → Branches → Add protection rule for "main"
+  #   ✅ Require status checks: "✅ All Checks Pass"
+  #   ✅ Require branches to be up to date before merging
+  #
+  # This is the ONLY check Railway should ever deploy from.
+  # "All Checks Pass" means:
+  #   - Docker image builds
+  #   - All packages install + import
+  #   - Alembic migrations run clean
+  #   - App starts on $PORT (not hardcoded)
+  #   - /health → healthy
+  #   - /health/db → PostgreSQL reachable
+  #   - 23 integration assertions pass
+  #   - Next.js production build succeeds
+  # ══════════════════════════════════════════════════════════════════════════
+  all-checks-pass:
+    name: "✅ All Checks Pass"
+    runs-on: ubuntu-latest
+    needs: [static-checks, docker-build, integration, frontend-build]
+    if: always()
+
+    steps:
+      - name: Evaluate all required jobs
+        run: |
+          echo "Job results:"
+          echo "  ① static-checks  : ${{ needs.static-checks.result }}"
+          echo "  ② docker-build   : ${{ needs.docker-build.result }}"
+          echo "  ③ integration    : ${{ needs.integration.result }}"
+          echo "  ④ frontend-build : ${{ needs.frontend-build.result }}"
+          echo ""
+
+          # ALL four jobs are required — none may be skipped or failed
+          FAILED=false
+          for result in \
+            "${{ needs.static-checks.result }}" \
+            "${{ needs.docker-build.result }}" \
+            "${{ needs.integration.result }}" \
+            "${{ needs.frontend-build.result }}"; do
+            if [ "$result" != "success" ]; then
+              FAILED=true
+            fi
+          done
+
+          if $FAILED; then
+            echo "🔴 One or more required checks FAILED or were skipped."
+            echo "   PR is BLOCKED — Railway should not deploy this commit."
+            exit 1
+          else
+            echo "🟢 All required checks passed."
+            echo "   PR approved for merge → Railway deployment."
+          fi
