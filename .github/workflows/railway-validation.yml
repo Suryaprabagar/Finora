@@ -243,7 +243,7 @@ jobs:
       # ── Verify ③: $PORT obedience check at image level ─────────────────
       # Start the image with PORT=9123 and verify uvicorn binds to that port.
       # This catches hardcoded port numbers in CMD/Procfile.
-      - name: "Verify — Image obeys \$PORT (not hardcoded)"
+      - name: "Verify — Image obeys $PORT (not hardcoded)"
         run: |
           # Start with a non-default port
           docker run -d --name port-test \
