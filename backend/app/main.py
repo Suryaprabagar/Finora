@@ -1,9 +1,12 @@
 """Finora FastAPI application factory."""
 import logging
+import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from app.core.config import settings
+from app.core.database import engine
 from app.api.v1.router import api_router
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -37,14 +40,39 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Application liveness check — does NOT probe the database."""
     return {"status": "healthy", "app": settings.PROJECT_NAME, "version": "1.0.0"}
+
+
+@app.get("/health/db")
+async def health_db():
+    """
+    Deep health check — probes the PostgreSQL connection.
+
+    Returns:
+        200  {"status": "healthy", "db": "ok",       "latency_ms": <n>}
+        503  {"status": "unhealthy", "db": "error",  "detail": "<reason>"}
+
+    CI uses this to distinguish "app alive" from "app + DB alive".
+    Railway can wire this up as the service health-check URL.
+    """
+    t0 = time.monotonic()
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        latency_ms = round((time.monotonic() - t0) * 1000, 2)
+        return {"status": "healthy", "db": "ok", "latency_ms": latency_ms}
+    except Exception as exc:
+        logger.error(f"DB health check failed: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "db": "error", "detail": str(exc)},
+        )
 
 
 @app.get("/")
 async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME} API", "docs": "/api/docs"}
-
 
 
 @app.exception_handler(Exception)
