@@ -21,6 +21,7 @@ NOTE: These policies use auth.uid() which is the Supabase Auth function.
 """
 from typing import Sequence, Union
 from alembic import op
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -77,7 +78,7 @@ def upgrade() -> None:
     # 1. alembic_version — system / migration table.
     #    Enable RLS and deny all direct PostgREST access.
     # -----------------------------------------------------------------------
-    conn.execute(op.inline_literal(
+    conn.execute(sa.text(
         "ALTER TABLE public.alembic_version ENABLE ROW LEVEL SECURITY;"
     ))
     # No SELECT/INSERT/UPDATE/DELETE policies => zero rows visible via API.
@@ -95,15 +96,15 @@ def upgrade() -> None:
             else "user_id = auth.uid()"
         )
 
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{table} ENABLE ROW LEVEL SECURITY;"
         ))
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{table} FORCE ROW LEVEL SECURITY;"
         ))
 
         # SELECT
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{table}_select_own"
             ON public.{table}
             FOR SELECT
@@ -116,7 +117,7 @@ def upgrade() -> None:
             if table == "users"
             else "user_id = auth.uid()"
         )
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{table}_insert_own"
             ON public.{table}
             FOR INSERT
@@ -124,7 +125,7 @@ def upgrade() -> None:
         """))
 
         # UPDATE
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{table}_update_own"
             ON public.{table}
             FOR UPDATE
@@ -133,7 +134,7 @@ def upgrade() -> None:
         """))
 
         # DELETE
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{table}_delete_own"
             ON public.{table}
             FOR DELETE
@@ -145,10 +146,10 @@ def upgrade() -> None:
     #    authenticated user.
     # -----------------------------------------------------------------------
     for child_table, child_fk, parent_table, parent_pk in CHILD_TABLES:
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{child_table} ENABLE ROW LEVEL SECURITY;"
         ))
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{child_table} FORCE ROW LEVEL SECURITY;"
         ))
 
@@ -161,7 +162,7 @@ def upgrade() -> None:
         )
 
         # SELECT
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{child_table}_select_own"
             ON public.{child_table}
             FOR SELECT
@@ -169,7 +170,7 @@ def upgrade() -> None:
         """))
 
         # INSERT
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{child_table}_insert_own"
             ON public.{child_table}
             FOR INSERT
@@ -177,7 +178,7 @@ def upgrade() -> None:
         """))
 
         # UPDATE
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{child_table}_update_own"
             ON public.{child_table}
             FOR UPDATE
@@ -186,7 +187,7 @@ def upgrade() -> None:
         """))
 
         # DELETE
-        conn.execute(op.inline_literal(f"""
+        conn.execute(sa.text(f"""
             CREATE POLICY "{child_table}_delete_own"
             ON public.{child_table}
             FOR DELETE
@@ -200,22 +201,22 @@ def downgrade() -> None:
     # Drop all policies and disable RLS (reverse order)
     for child_table, _, _, _ in reversed(CHILD_TABLES):
         for op_name in ("select_own", "insert_own", "update_own", "delete_own"):
-            conn.execute(op.inline_literal(
+            conn.execute(sa.text(
                 f'DROP POLICY IF EXISTS "{child_table}_{op_name}" ON public.{child_table};'
             ))
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{child_table} DISABLE ROW LEVEL SECURITY;"
         ))
 
     for table in reversed(OWNER_TABLES):
         for op_name in ("select_own", "insert_own", "update_own", "delete_own"):
-            conn.execute(op.inline_literal(
+            conn.execute(sa.text(
                 f'DROP POLICY IF EXISTS "{table}_{op_name}" ON public.{table};'
             ))
-        conn.execute(op.inline_literal(
+        conn.execute(sa.text(
             f"ALTER TABLE public.{table} DISABLE ROW LEVEL SECURITY;"
         ))
 
-    conn.execute(op.inline_literal(
+    conn.execute(sa.text(
         "ALTER TABLE public.alembic_version DISABLE ROW LEVEL SECURITY;"
     ))
