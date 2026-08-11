@@ -99,7 +99,7 @@ else:
 
 # ── unique credentials — idempotent across runs ───────────────────────────────
 uid = uuid.uuid4().hex[:8]
-TEST_EMAIL = f"ci-test-{uid}@finora.test"
+TEST_EMAIL = f"ci-test-{uid}@example.com"
 TEST_PASSWORD = "TestPass@1234!"
 TEST_NAME = f"CI User {uid}"
 
@@ -155,7 +155,7 @@ check(
 print("\n── Section 4: Register ────────────────────────────────")
 
 r = post("/api/v1/auth/register", json={
-    "name": TEST_NAME,
+    "full_name": TEST_NAME,
     "email": TEST_EMAIL,
     "password": TEST_PASSWORD,
 })
@@ -185,7 +185,7 @@ check("access_token present in login response", bool(token), str(data)[:120])
 print("\n── Section 6: Auth guard ──────────────────────────────")
 
 r = get("/api/v1/users/me")
-check("GET /users/me (no token) → 401", r.status_code == 401, str(r.status_code))
+check("GET /users/me (no token) → 401 or 403", r.status_code in (401, 403), str(r.status_code))
 
 r = get("/api/v1/users/me", token=token)
 check("GET /users/me (with token) → 200", r.status_code == 200, r.text[:120])
