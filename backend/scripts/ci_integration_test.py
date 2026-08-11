@@ -172,9 +172,10 @@ r = post("/api/v1/auth/login", json={
 })
 check("POST /auth/login → 200", r.status_code == 200, r.text[:120])
 data = r.json() if r.status_code == 200 else {}
-# Support both flat {"access_token": ...} and nested {"data": {"access_token": ...}}
+# Support various formats: {"access_token": ...}, {"data": {"access_token": ...}}, or {"data": {"tokens": {"access_token": ...}}}
 token = (
-    data.get("data", {}).get("access_token")
+    data.get("data", {}).get("tokens", {}).get("access_token")
+    or data.get("data", {}).get("access_token")
     or data.get("access_token", "")
 )
 check("access_token present in login response", bool(token), str(data)[:120])
