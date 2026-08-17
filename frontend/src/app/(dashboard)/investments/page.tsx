@@ -196,55 +196,89 @@ export default function InvestmentsPage() {
               <h3 className="text-lg font-bold text-on-surface">Wealth Appreciation</h3>
             </div>
           </div>
-          <div className="flex-1 w-full relative min-h-[220px]">
-            {analytics?.growth_history && analytics.growth_history.length > 0 ? (() => {
-              const pts = analytics.growth_history
-              const W = 800, H = 200, PAD = 10
-              const minV = Math.min(...pts.map((p: any) => p.value))
-              const maxV = Math.max(...pts.map((p: any) => p.value))
-              const range = maxV - minV || 1
-              const coords = pts.map((p: any, i: number) => ({
-                x: (i / Math.max(pts.length - 1, 1)) * W,
-                y: PAD + (1 - (p.value - minV) / range) * (H - PAD * 2)
-              }))
-              const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
-              const fillPath = `${linePath} L${W},${H} L0,${H} Z`
-              // Show up to 7 evenly spaced date labels
-              const labelIdxs = pts.length <= 7
-                ? pts.map((_: any, i: number) => i)
-                : [0, Math.round(pts.length * 0.17), Math.round(pts.length * 0.33), Math.round(pts.length * 0.5), Math.round(pts.length * 0.67), Math.round(pts.length * 0.83), pts.length - 1]
-              return (
-                <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
-                  <defs>
-                    <linearGradient id="wealthGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-                      <stop offset="0%" style={{ stopColor: 'rgba(139, 94, 60, 0.25)' }} />
-                      <stop offset="100%" style={{ stopColor: 'rgba(139, 94, 60, 0)' }} />
-                    </linearGradient>
-                  </defs>
-                  <path d={fillPath} fill="url(#wealthGradient)" />
-                  <path d={linePath} fill="none" stroke="#8B5E3C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  {coords.map((c, i) => (
-                    <circle key={i} cx={c.x} cy={c.y} r="3" fill="#8B5E3C" opacity="0.7" />
+          {analytics?.growth_history && analytics.growth_history.length > 0 ? (() => {
+            const pts = analytics.growth_history
+            const W = 800, H = 200
+            const PAD_TOP = 16, PAD_BOTTOM = 16, PAD_LEFT = 0, PAD_RIGHT = 0
+            const minV = Math.min(...pts.map((p: any) => p.value))
+            const maxV = Math.max(...pts.map((p: any) => p.value))
+            const range = maxV - minV || 1
+            const chartH = H - PAD_TOP - PAD_BOTTOM
+            const chartW = W - PAD_LEFT - PAD_RIGHT
+
+            const coords = pts.map((p: any, i: number) => ({
+              x: PAD_LEFT + (i / Math.max(pts.length - 1, 1)) * chartW,
+              y: PAD_TOP + (1 - (p.value - minV) / range) * chartH
+            }))
+
+            const linePath = coords.map((c: { x: number; y: number }, i: number) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+            const fillPath = `${linePath} L${coords[coords.length - 1].x.toFixed(1)},${H} L${coords[0].x.toFixed(1)},${H} Z`
+
+            // Mid-point Y for the gridline
+            const midY = PAD_TOP + chartH / 2
+            const midV = minV + range / 2
+
+            // Date labels: up to 7 evenly spaced
+            const labelIdxs: number[] = pts.length <= 7
+              ? pts.map((_: any, i: number) => i)
+              : [0, Math.round(pts.length * 0.17), Math.round(pts.length * 0.33), Math.round(pts.length * 0.5), Math.round(pts.length * 0.67), Math.round(pts.length * 0.83), pts.length - 1]
+
+            const fmt = (v: number) =>
+              v >= 1_00_000
+                ? `₹${(v / 1_00_000).toFixed(1)}L`
+                : v >= 1000
+                  ? `₹${(v / 1000).toFixed(0)}K`
+                  : `₹${v.toFixed(0)}`
+
+            return (
+              <div className="w-full flex flex-col gap-1">
+                {/* Y-axis labels + chart */}
+                <div className="relative w-full" style={{ height: '200px' }}>
+                  {/* Y-axis value hints */}
+                  <div className="absolute left-0 top-0 h-full flex flex-col justify-between pointer-events-none" style={{ paddingTop: `${PAD_TOP}px`, paddingBottom: `${PAD_BOTTOM}px` }}>
+                    <span className="text-[9px] font-bold text-on-surface-variant/70 leading-none">{fmt(maxV)}</span>
+                    <span className="text-[9px] font-bold text-on-surface-variant/50 leading-none">{fmt(midV)}</span>
+                    <span className="text-[9px] font-bold text-on-surface-variant/70 leading-none">{fmt(minV)}</span>
+                  </div>
+                  {/* SVG chart */}
+                  <div className="absolute inset-0" style={{ paddingLeft: '36px' }}>
+                    <svg className="w-full h-full" preserveAspectRatio="none" viewBox={`0 0 ${W} ${H}`}>
+                      <defs>
+                        <linearGradient id="wealthGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+                          <stop offset="0%" style={{ stopColor: 'rgba(139, 94, 60, 0.22)' }} />
+                          <stop offset="100%" style={{ stopColor: 'rgba(139, 94, 60, 0)' }} />
+                        </linearGradient>
+                      </defs>
+                      {/* Mid gridline */}
+                      <line x1={PAD_LEFT} y1={midY.toFixed(1)} x2={W - PAD_RIGHT} y2={midY.toFixed(1)} stroke="rgba(139,94,60,0.10)" strokeWidth="1" strokeDasharray="6,4" />
+                      {/* Area fill */}
+                      <path d={fillPath} fill="url(#wealthGradient)" />
+                      {/* Line */}
+                      <path d={linePath} fill="none" stroke="#8B5E3C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Dots — only show if few data points to avoid clutter */}
+                      {pts.length <= 12 && coords.map((c: { x: number; y: number }, i: number) => (
+                        <circle key={i} cx={c.x} cy={c.y} r="3.5" fill="#8B5E3C" opacity="0.75" />
+                      ))}
+                      {/* Start and end dots always shown */}
+                      {pts.length > 12 && [0, pts.length - 1].map(i => (
+                        <circle key={i} cx={coords[i].x} cy={coords[i].y} r="4" fill="#8B5E3C" opacity="0.9" />
+                      ))}
+                    </svg>
+                  </div>
+                </div>
+                {/* Date labels row — outside SVG, no overlap */}
+                <div className="flex justify-between text-[9px] text-on-surface-variant font-bold uppercase tracking-wider" style={{ paddingLeft: '36px' }}>
+                  {labelIdxs.map((idx: number) => (
+                    <span key={idx}>{new Date(pts[idx].date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</span>
                   ))}
-                </svg>
-              )
-            })() : (
-              <div className="flex items-center justify-center h-full text-sm text-on-surface-variant">
-                No growth history available yet.
+                </div>
               </div>
-            )}
-            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-[10px] text-on-surface-variant px-2 pt-4 font-bold uppercase tracking-wider">
-              {analytics?.growth_history?.length > 0 && (() => {
-                const pts = analytics.growth_history
-                const labelIdxs = pts.length <= 7
-                  ? pts.map((_: any, i: number) => i)
-                  : [0, Math.round(pts.length * 0.17), Math.round(pts.length * 0.33), Math.round(pts.length * 0.5), Math.round(pts.length * 0.67), Math.round(pts.length * 0.83), pts.length - 1]
-                return labelIdxs.map((idx: number) => (
-                  <span key={idx}>{new Date(pts[idx].date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</span>
-                ))
-              })()}
+            )
+          })() : (
+            <div className="flex items-center justify-center min-h-[220px] text-sm text-on-surface-variant">
+              No growth history available yet.
             </div>
-          </div>
+          )}
         </div>
         
         {/* Asset Allocation */}

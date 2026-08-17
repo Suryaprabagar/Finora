@@ -3,6 +3,22 @@ from app.models.investment import Investment
 
 class AllocationService:
     @staticmethod
+    def _resolve_type(inv: Investment) -> str:
+        """Helper to reclassify investments based on name/symbol keywords.
+
+        Detects Gold ETFs by checking if 'gold' appears in the investment name
+        or symbol (case-insensitive) and reclassifies them as 'gold' so they
+        use the correct risk weight (2) and show under "Gold" in allocation.
+        """
+        inv_type    = str(inv.type or '').lower().strip()
+        name_lower  = str(inv.name or '').lower()
+        symbol_lower = str(inv.symbol or '').lower()
+
+        if inv_type == 'etf' and ('gold' in name_lower or 'gold' in symbol_lower):
+            return 'gold'
+        return inv_type
+
+    @staticmethod
     def calculate_allocation(investments: List[Investment]) -> Dict[str, Any]:
         """Calculates asset allocation from a list of investments."""
         allocation = {}
@@ -41,7 +57,7 @@ class AllocationService:
             total_value += current_val
             
             # Normalize type string
-            inv_type = str(inv.type).lower().strip()
+            inv_type = AllocationService._resolve_type(inv)
             if inv_type not in color_map:
                 inv_type = 'other'
                 
