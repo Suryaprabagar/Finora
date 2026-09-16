@@ -61,17 +61,7 @@ async def delete_category(id: uuid.UUID, db: AsyncSession = Depends(get_db), cur
     await db.commit()
     return APIResponse(message="Category deleted")
 
-@router.post("/reset-demo")
-async def reset_demo(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.email != "demo@finora.app":
-        raise HTTPException(status_code=403, detail="Only demo user can reset data")
-        
-    try:
-        from scripts.seed_data import reset_demo_data
-        await reset_demo_data()
-        return APIResponse(message="Demo data reset successfully")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/export")
 async def export_data(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

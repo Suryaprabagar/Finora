@@ -43,3 +43,14 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ── Google Drive credentials (NEVER commit these) ──────────────────────────────
+# OAuth2 client secrets downloaded from Google Cloud Console
+backend/credentials.json
+credentials.json
+# OAuth2 token (auto-generated on first login)
+backend/.finora/token.json
+.finora/token.json
+# The entire .finora working directory contains local cache and tokens
+backend/.finora/
+.finora/

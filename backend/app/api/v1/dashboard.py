@@ -137,6 +137,33 @@ async def get_dashboard(
             "expenses": month_expense,
             "savings": month_income - month_expense,
         })
+    
+    if current_month_start.month == 1:
+        last_month_start = date(current_month_start.year - 1, 12, 1)
+    else:
+        last_month_start = date(
+            current_month_start.year,
+            current_month_start.month - 1,
+            1,
+        )
+    # --- Last Month Income ---
+    last_month_income_result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.type == "income",
+            Transaction.date >= last_month_start,
+            Transaction.date < current_month_start,
+            Transaction.deleted_at.is_(None),
+        )
+    )
+    last_month_income = float(last_month_income_result.scalar() or 0)
+
+    income_change_pct = (
+        ((monthly_income - last_month_income) / last_month_income) * 100
+        if last_month_income > 0
+        else 0
+    )
 
     # --- Asset Allocation (by investment type) ---
     alloc_result = await db.execute(

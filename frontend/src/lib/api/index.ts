@@ -119,7 +119,6 @@ export const settingsApi = {
   createCategory: (data: unknown) => apiClientModule.post<APIResponse<any>>('/settings/categories', data),
   updateCategory: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/settings/categories/${id}`, data),
   deleteCategory: (id: string) => apiClientModule.delete<APIResponse<null>>(`/settings/categories/${id}`),
-  resetDemo: () => apiClientModule.post<APIResponse<null>>('/settings/reset-demo'),
   // BUG-019 note: exportData() correctly uses res.data directly because the backend /settings/export
   // intentionally returns a raw dict (not wrapped in APIResponse) to avoid Pydantic serialization limits.
   exportData: () => apiClientModule.post('/settings/export').then(res => res.data),
@@ -142,6 +141,7 @@ export const expensesApi = {
   list: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/expenses', { params }),
   getSummary: () => apiClientModule.get<APIResponse<any>>('/expenses/summary'),
   getByCategory: () => apiClientModule.get<APIResponse<any[]>>('/expenses/by-category'),
+  getByMerchant: () => apiClientModule.get<APIResponse<any[]>>('/expenses/by-merchant'),
   getTrends: () => apiClientModule.get<APIResponse<any[]>>('/expenses/trends'),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/expenses', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/expenses/${id}`, data),

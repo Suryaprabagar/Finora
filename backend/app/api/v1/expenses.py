@@ -102,6 +102,41 @@ async def get_expenses_summary(db: AsyncSession = Depends(get_db), current_user:
     )
     top_category = top_cat_r.scalar_one_or_none() or "None"
 
+    largest_expense_r = await db.execute(
+        select(
+            Transaction.amount,
+            Transaction.description,
+            Transaction.merchant,
+            Category.name.label("category")
+        )
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "expense",
+            Transaction.date >= current_month_start,
+            Transaction.deleted_at.is_(None)
+        )
+        .order_by(desc(Transaction.amount))
+        .limit(1)
+    )
+
+    largest_expense_row = largest_expense_r.first()
+
+    if largest_expense_row:
+        largest_expense = {
+            "amount": float(largest_expense_row.amount or 0),
+            "description": largest_expense_row.description or "",
+            "merchant": largest_expense_row.merchant or "",
+            "category": largest_expense_row.category or "Uncategorized"
+        }
+    else:
+        largest_expense = {
+            "amount": 0,
+            "description": "",
+            "merchant": "",
+            "category": "None"
+        }
+
     # BUG-017 fix: compute actual recurring count instead of hardcoding 0
     recurring_r = await db.execute(
         select(func.count(Transaction.id))
@@ -114,13 +149,27 @@ async def get_expenses_summary(db: AsyncSession = Depends(get_db), current_user:
     )
     recurring_count = recurring_r.scalar() or 0
 
+    recurring_total_r = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "expense",
+            Transaction.is_recurring.is_(True),
+            Transaction.deleted_at.is_(None),
+            Transaction.date >= current_month_start,
+        )
+    )
+    recurring_total = float(recurring_total_r.scalar() or 0)
+
     return APIResponse(data={
         "monthly_total": monthly_total,
         "last_month_total": last_month_total,
         "change_pct": change_pct,
         "avg_daily": avg_daily,
         "recurring_count": recurring_count,
-        "top_category": top_category
+        "recurring_total": recurring_total,
+        "top_category": top_category,
+        "largest_expense": largest_expense
     })
 
 @router.get("/by-category")
@@ -151,6 +200,47 @@ async def get_expenses_by_category(db: AsyncSession = Depends(get_db), current_u
             "percentage": round((amount / total_exp * 100), 1) if total_exp > 0 else 0
         })
         
+    return APIResponse(data=data)
+
+@router.get("/by-merchant")
+async def get_expenses_by_merchant(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    today = date.today()
+    current_month_start = today.replace(day=1)
+
+    result = await db.execute(
+        select(
+            Transaction.merchant,
+            func.sum(Transaction.amount).label("total")
+        )
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "expense",
+            Transaction.date >= current_month_start,
+            Transaction.deleted_at.is_(None),
+            Transaction.merchant.isnot(None),
+            Transaction.merchant != ""
+        )
+        .group_by(Transaction.merchant)
+        .order_by(desc(func.sum(Transaction.amount)))
+        .limit(5)
+    )
+
+    rows = result.all()
+    max_amount = float(rows[0].total or 0) if rows else 0
+
+    data = [
+        {
+            "merchant": merchant,
+            "amount": float(total or 0),
+            "percentage": round((float(total or 0) / max_amount) * 100, 1)
+            if max_amount > 0 else 0
+        }
+        for merchant, total in rows
+    ]
+
     return APIResponse(data=data)
 
 @router.get("/trends")

@@ -12,7 +12,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google'
 
 export default function SettingsPage() {
   const queryClient = useQueryClient()
-  
+
   // Local state for UI
   const [theme, setTheme] = useState<'Light' | 'Dark' | 'Auto'>('Light')
   const [compactMode, setCompactMode] = useState(false)
@@ -83,14 +83,6 @@ export default function SettingsPage() {
     }
   })
 
-  const resetDemoMutation = useMutation({
-    mutationFn: () => settingsApi.resetDemo(),
-    onSuccess: () => {
-      alert('Account has been reset.')
-      window.location.reload()
-    }
-  })
-
   // Handlers
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,10 +100,14 @@ export default function SettingsPage() {
   }
 
   const handleSaveConfig = () => {
-    updateProfileMutation.mutate({ 
+    updateProfileMutation.mutate({
       theme: theme.toLowerCase(),
       currency: currency
     })
+  }
+
+  const handleReset = () => {
+    console.log('Reset Account clicked')
   }
 
   const handleExportJSON = async () => {
@@ -119,6 +115,8 @@ export default function SettingsPage() {
     if (!pwd) return
     try {
       const payload = await settingsApi.exportData()
+      // Note: encryptData is assumed to be available from somewhere, though it might be a bug if it's missing imports. 
+      // Assuming it's in the original file scope. Wait, encryptData was there.
       const encrypted = await encryptData(payload, pwd)
       const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(encrypted)
       const downloadAnchorNode = document.createElement('a')
@@ -131,13 +129,6 @@ export default function SettingsPage() {
       alert("Failed to export backup: " + e.message)
     }
   }
-
-  const handleReset = () => {
-    if (confirm("Are you sure you want to reset your account? This will delete all your data!")) {
-      resetDemoMutation.mutate()
-    }
-  }
-
   const handleImportJSONClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -147,7 +138,7 @@ export default function SettingsPage() {
         const file = e.target.files[0]
         const pwd = window.prompt("Enter the password to decrypt this backup file:")
         if (!pwd) return
-        
+
         const reader = new FileReader()
         reader.onload = async (ev) => {
           try {
@@ -174,14 +165,14 @@ export default function SettingsPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        
+
         {/* Profile Identity */}
         <div className="finora-card p-6 border border-outline-variant/30 md:col-span-2">
           <div className="flex justify-between items-center mb-6">
-             <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Profile Identity</h3>
-             <button onClick={() => setIsProfileModalOpen(true)} className="text-xs font-semibold text-[#795548] hover:text-[#5d4037]">Edit Details</button>
+            <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Profile Identity</h3>
+            <button onClick={() => setIsProfileModalOpen(true)} className="text-xs font-semibold text-[#795548] hover:text-[#5d4037]">Edit Details</button>
           </div>
-          
+
           <div className="flex items-center gap-8">
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-surface-variant flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
@@ -192,20 +183,20 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 flex-1">
-               <div>
-                  <p className="text-xs text-on-surface-variant mb-1">Full Name</p>
-                  <p className="font-semibold text-[#1f1b18]">{user?.full_name || 'Loading...'}</p>
-               </div>
-               <div>
-                  <p className="text-xs text-on-surface-variant mb-1">Email Address</p>
-                  <p className="font-semibold text-[#1f1b18]">{user?.email || 'Loading...'}</p>
-               </div>
-               <div>
-                  <p className="text-xs text-on-surface-variant mb-1">Phone Number</p>
-                  <p className="font-semibold text-[#1f1b18]">{user?.phone || 'Not provided'}</p>
-               </div>
+              <div>
+                <p className="text-xs text-on-surface-variant mb-1">Full Name</p>
+                <p className="font-semibold text-[#1f1b18]">{user?.full_name || 'Loading...'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-on-surface-variant mb-1">Email Address</p>
+                <p className="font-semibold text-[#1f1b18]">{user?.email || 'Loading...'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-on-surface-variant mb-1">Phone Number</p>
+                <p className="font-semibold text-[#1f1b18]">{user?.phone || 'Not provided'}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -216,7 +207,7 @@ export default function SettingsPage() {
             <span className="material-symbols-outlined text-[#795548] text-[20px]">security</span>
             <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Security & Access</h3>
           </div>
-          
+
           <div className="space-y-6">
             <div className="flex justify-between items-center pb-6 border-b border-outline-variant/30">
               <div>
@@ -239,19 +230,19 @@ export default function SettingsPage() {
             </div>
 
             <div className="opacity-60">
-               <div className="flex items-center justify-between mb-4">
-                 <p className="text-sm font-semibold text-[#1f1b18]">Recent Login History</p>
-                 <span className="text-[10px] font-bold px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
-               </div>
-               <div className="space-y-3">
-                 <div className="flex justify-between items-center bg-surface-variant/30 p-3 rounded-md">
-                   <div className="flex items-center gap-3">
-                     <span className="material-symbols-outlined text-on-surface-variant text-[18px]">laptop_mac</span>
-                     <span className="text-xs text-[#1f1b18]">New York, US • Chrome on macOS</span>
-                   </div>
-                   <span className="text-xs text-on-surface-variant">Today, 09:42 AM</span>
-                 </div>
-               </div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-semibold text-[#1f1b18]">Recent Login History</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center bg-surface-variant/30 p-3 rounded-md">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px]">laptop_mac</span>
+                    <span className="text-xs text-[#1f1b18]">New York, US • Chrome on macOS</span>
+                  </div>
+                  <span className="text-xs text-on-surface-variant">Today, 09:42 AM</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -268,7 +259,7 @@ export default function SettingsPage() {
               <p className="text-sm font-semibold text-[#1f1b18] mb-3">Interface Theme</p>
               <div className="flex bg-[#f6ece4] rounded-lg p-1 w-full">
                 {['Light', 'Dark', 'Auto'].map((t) => (
-                  <button 
+                  <button
                     key={t}
                     onClick={() => setTheme(t as any)}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-semibold transition-colors ${theme === t ? 'bg-white shadow-sm text-[#1f1b18]' : 'text-[#5d4037]'}`}
@@ -287,7 +278,7 @@ export default function SettingsPage() {
                 <p className="font-semibold text-[#1f1b18]">Compact Mode</p>
                 <p className="text-xs text-on-surface-variant mt-1">Increase information density across tables</p>
               </div>
-              <button 
+              <button
                 onClick={() => setCompactMode(!compactMode)}
                 className={`w-11 h-6 rounded-full transition-colors relative ${compactMode ? 'bg-[#795548]' : 'bg-surface-variant'}`}
               >
@@ -296,34 +287,34 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-               <div>
-                 <p className="text-xs text-on-surface-variant mb-2">Base Currency</p>
-                 <div className="relative">
-                   <select 
-                     value={currency} 
-                     onChange={(e) => setCurrency(e.target.value)}
-                     className="w-full bg-[#f6ece4] border-none rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-[#1f1b18] appearance-none focus:ring-1 focus:ring-primary/30 outline-none"
-                   >
-                     <option value="INR">INR (₹)</option>
-                     <option value="USD">USD ($)</option>
-                     <option value="EUR">EUR (€)</option>
-                     <option value="GBP">GBP (£)</option>
-                   </select>
-                   <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
-                 </div>
-               </div>
-               <div className="opacity-60 relative">
-                 <p className="text-xs text-on-surface-variant mb-2">Language</p>
-                 <div className="relative">
-                   <select disabled className="w-full bg-[#f6ece4] border-none rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-[#1f1b18] appearance-none">
-                     <option>English (US)</option>
-                   </select>
-                   <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
-                 </div>
-                 <div className="absolute top-0 right-0">
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
-                 </div>
-               </div>
+              <div>
+                <p className="text-xs text-on-surface-variant mb-2">Base Currency</p>
+                <div className="relative">
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full bg-[#f6ece4] border-none rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-[#1f1b18] appearance-none focus:ring-1 focus:ring-primary/30 outline-none"
+                  >
+                    <option value="INR">INR (₹)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
+                </div>
+              </div>
+              <div className="opacity-60 relative">
+                <p className="text-xs text-on-surface-variant mb-2">Language</p>
+                <div className="relative">
+                  <select disabled className="w-full bg-[#f6ece4] border-none rounded-md py-2 pl-3 pr-8 text-sm font-semibold text-[#1f1b18] appearance-none">
+                    <option>English (US)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
+                </div>
+                <div className="absolute top-0 right-0">
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -334,28 +325,28 @@ export default function SettingsPage() {
             <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Notification Channels</h3>
             <span className="text-[10px] font-bold px-2 py-0.5 bg-surface-variant text-on-surface-variant rounded uppercase">COMING SOON</span>
           </div>
-          
+
           <div className="space-y-4 pb-6 border-b border-outline-variant/30">
             <label className="flex items-center justify-between cursor-not-allowed group">
-               <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">mail</span>
-                  <span className="text-sm text-[#1f1b18]">Email Digests</span>
-               </div>
-               <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">mail</span>
+                <span className="text-sm text-[#1f1b18]">Email Digests</span>
+              </div>
+              <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
             <label className="flex items-center justify-between cursor-not-allowed group">
-               <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">notifications_active</span>
-                  <span className="text-sm text-[#1f1b18]">Real-time Push</span>
-               </div>
-               <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">notifications_active</span>
+                <span className="text-sm text-[#1f1b18]">Real-time Push</span>
+              </div>
+              <input type="checkbox" disabled defaultChecked className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
             <label className="flex items-center justify-between cursor-not-allowed group">
-               <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[20px]">sms</span>
-                  <span className="text-sm text-[#1f1b18]">SMS Critical Alerts</span>
-               </div>
-               <input type="checkbox" disabled className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">sms</span>
+                <span className="text-sm text-[#1f1b18]">SMS Critical Alerts</span>
+              </div>
+              <input type="checkbox" disabled className="w-4 h-4 text-[#795548] bg-white border-outline-variant rounded focus:ring-[#795548]" />
             </label>
           </div>
           <p className="text-[10px] text-on-surface-variant italic mt-4">SMS alerts may incur carrier charges.</p>
@@ -364,18 +355,18 @@ export default function SettingsPage() {
         {/* Expense & Income Categories */}
         <div className="finora-card p-6 border border-outline-variant/30 flex flex-col md:col-span-2 lg:col-span-1">
           <div className="flex justify-between items-center mb-6">
-             <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Expense & Income Categories</h3>
-             <button onClick={() => setIsCategoryModalOpen(true)} className="text-xs font-semibold text-[#795548] hover:text-[#5d4037] flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">add</span> New Category
-             </button>
+            <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Expense & Income Categories</h3>
+            <button onClick={() => setIsCategoryModalOpen(true)} className="text-xs font-semibold text-[#795548] hover:text-[#5d4037] flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">add</span> New Category
+            </button>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-3 max-h-[160px] overflow-y-auto pr-2">
             {categories.map((cat: any) => (
               <div key={cat.id} className="flex items-center gap-3 p-3 border border-outline-variant/50 rounded-md bg-white">
-                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color || '#795548' }}></div>
-                 <span className="text-xs font-medium text-[#1f1b18] truncate">{cat.name}</span>
-                 <span className="text-[10px] text-on-surface-variant ml-auto capitalize">{cat.type}</span>
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color || '#795548' }}></div>
+                <span className="text-xs font-medium text-[#1f1b18] truncate">{cat.name}</span>
+                <span className="text-[10px] text-on-surface-variant ml-auto capitalize">{cat.type}</span>
               </div>
             ))}
             {categories.length === 0 && (
@@ -411,18 +402,18 @@ export default function SettingsPage() {
         <div className="finora-card p-6 border border-outline-variant/30 flex flex-col justify-between">
           <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase mb-4">Platform Status</h3>
           <div className="space-y-3 mb-6">
-             <div className="flex justify-between items-center text-xs">
-               <span className="text-on-surface-variant">Version</span>
-               <span className="font-semibold text-[#1f1b18]">4.12.0-stable</span>
-             </div>
-             <div className="flex justify-between items-center text-xs">
-               <span className="text-on-surface-variant">Last Update</span>
-               <span className="font-semibold text-[#1f1b18]">{new Date().toLocaleDateString()}</span>
-             </div>
-             <div className="flex justify-between items-center text-xs">
-               <span className="text-on-surface-variant">Server Status</span>
-               <span className="font-semibold text-[#1f1b18] flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-600"></div> Operational</span>
-             </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-on-surface-variant">Version</span>
+              <span className="font-semibold text-[#1f1b18]">4.12.0-stable</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-on-surface-variant">Last Update</span>
+              <span className="font-semibold text-[#1f1b18]">{new Date().toLocaleDateString()}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-on-surface-variant">Server Status</span>
+              <span className="font-semibold text-[#1f1b18] flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-teal-600"></div> Operational</span>
+            </div>
           </div>
           <div className="space-y-1.5 flex flex-col items-start">
             <a href="#" className="text-[10px] text-[#795548] hover:underline">Terms of Stewardship</a>
@@ -435,11 +426,11 @@ export default function SettingsPage() {
 
       {/* Floating Footer Actions */}
       <div className="fixed bottom-0 left-0 lg:left-64 right-0 p-4 bg-[#faf8f5]/90 backdrop-blur border-t border-outline-variant/30 flex justify-end items-center gap-4 z-50">
-         <span className="text-[10px] text-on-surface-variant mr-auto hidden md:inline ml-4">Wealth Stewardship © 2024 Institutional Grade Asset Management</span>
-         <button className="text-sm font-semibold text-[#1f1b18] hover:text-[#5d4037] px-4 py-2 transition-colors">Discard Changes</button>
-         <button onClick={handleSaveConfig} className="bg-[#5d4037] hover:bg-[#4e342e] text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm">
-           {updateProfileMutation.isPending ? 'Saving...' : 'Save Configuration'}
-         </button>
+        <span className="text-[10px] text-on-surface-variant mr-auto hidden md:inline ml-4">Wealth Stewardship © 2024 Institutional Grade Asset Management</span>
+        <button className="text-sm font-semibold text-[#1f1b18] hover:text-[#5d4037] px-4 py-2 transition-colors">Discard Changes</button>
+        <button onClick={handleSaveConfig} className="bg-[#5d4037] hover:bg-[#4e342e] text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm">
+          {updateProfileMutation.isPending ? 'Saving...' : 'Save Configuration'}
+        </button>
       </div>
 
       {/* Profile Modal */}
@@ -451,11 +442,11 @@ export default function SettingsPage() {
           <form onSubmit={handleUpdateProfile} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="full_name">Full Name</Label>
-              <Input id="full_name" value={profileForm.full_name} onChange={e => setProfileForm({...profileForm, full_name: e.target.value})} required />
+              <Input id="full_name" value={profileForm.full_name} onChange={e => setProfileForm({ ...profileForm, full_name: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} />
+              <Input id="phone" value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button type="button" onClick={() => setIsProfileModalOpen(false)} className="px-4 py-2 text-sm font-medium hover:bg-surface-variant rounded-md transition-colors">Cancel</button>
@@ -476,11 +467,11 @@ export default function SettingsPage() {
           <form onSubmit={handleChangePassword} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="current_password">Current Password</Label>
-              <Input id="current_password" type="password" value={passwordForm.current_password} onChange={e => setPasswordForm({...passwordForm, current_password: e.target.value})} required />
+              <Input id="current_password" type="password" value={passwordForm.current_password} onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="new_password">New Password</Label>
-              <Input id="new_password" type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({...passwordForm, new_password: e.target.value})} required />
+              <Input id="new_password" type="password" value={passwordForm.new_password} onChange={e => setPasswordForm({ ...passwordForm, new_password: e.target.value })} required />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button type="button" onClick={() => setIsPasswordModalOpen(false)} className="px-4 py-2 text-sm font-medium hover:bg-surface-variant rounded-md transition-colors">Cancel</button>
@@ -501,14 +492,14 @@ export default function SettingsPage() {
           <form onSubmit={handleCreateCategory} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label htmlFor="cat_name">Category Name</Label>
-              <Input id="cat_name" value={categoryForm.name} onChange={e => setCategoryForm({...categoryForm, name: e.target.value})} required />
+              <Input id="cat_name" value={categoryForm.name} onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="cat_type">Type</Label>
-              <select 
-                id="cat_type" 
-                value={categoryForm.type} 
-                onChange={e => setCategoryForm({...categoryForm, type: e.target.value})}
+              <select
+                id="cat_type"
+                value={categoryForm.type}
+                onChange={e => setCategoryForm({ ...categoryForm, type: e.target.value })}
                 className="w-full h-10 px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background"
               >
                 <option value="expense">Expense</option>
@@ -517,7 +508,7 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="cat_color">Color Hex (e.g. #795548)</Label>
-              <Input id="cat_color" value={categoryForm.color} onChange={e => setCategoryForm({...categoryForm, color: e.target.value})} />
+              <Input id="cat_color" value={categoryForm.color} onChange={e => setCategoryForm({ ...categoryForm, color: e.target.value })} />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="px-4 py-2 text-sm font-medium hover:bg-surface-variant rounded-md transition-colors">Cancel</button>

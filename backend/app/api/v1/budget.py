@@ -84,6 +84,26 @@ async def get_current_budget(db: AsyncSession = Depends(get_db), current_user: U
         next_month_start = date(today.year + 1, 1, 1)
     else:
         next_month_start = date(today.year, today.month + 1, 1)
+
+        # Calculate total current-month spending
+    spent_total_r = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == current_user.id,
+            Transaction.type == "expense",
+            Transaction.date >= current_month_start,
+            Transaction.date < next_month_start,
+            Transaction.deleted_at.is_(None)
+        )
+    )
+
+    spent_total = float(spent_total_r.scalar() or 0)
+
+    # Remaining budget
+    remaining_total = float(budget.total_limit or 0) - spent_total
+
+    # Calendar days remaining after today
+    days_remaining = max((next_month_start - today).days - 1, 0)
         
     budget_data = BudgetResponse.model_validate(budget).model_dump()
     for item in budget_data["items"]:

@@ -8,7 +8,7 @@ const authRoutes = ['/login', '/register', '/forgot-password', '/reset-password'
 // '/' as a startsWith check matches ALL paths, making the rest of the list redundant and
 // confusing. Instead, we protect EVERYTHING except explicit auth routes — which is the
 // correct behaviour for a finance app anyway.
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Check for auth token in cookies (set on login)

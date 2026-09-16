@@ -65,14 +65,14 @@ export default function IncomePage() {
     }
   })
 
-  const summary = summaryRes?.data || { monthly_total: 0, annual_total: 0, recurring_count: 0, pending_count: 0, largest_source: { name: 'None', amount: 0 } }
+  const summary = summaryRes?.data || { monthly_total: 0, annual_total: 0, recurring_count: 0, pending_count: 0, income_change_pct: 0, largest_source: { name: 'None', amount: 0 } }
   const categoriesData = categoriesRes?.data || []
   const trendsData = trendsRes?.data || []
   const allIncomes = listRes?.data || []
   const incomes = useMemo(() => {
     if (!searchTerm) return allIncomes
     const term = searchTerm.toLowerCase()
-    return allIncomes.filter((tx: any) => 
+    return allIncomes.filter((tx: any) =>
       tx.description?.toLowerCase().includes(term) ||
       tx.category?.name?.toLowerCase().includes(term) ||
       tx.bank_account?.name?.toLowerCase().includes(term)
@@ -82,7 +82,7 @@ export default function IncomePage() {
   // Compute pending income amount from the live income list
   const pendingAmount = useMemo(() =>
     allIncomes.filter((tx: any) => tx.status === 'pending').reduce((sum: number, tx: any) => sum + Number(tx.amount || 0), 0)
-  , [allIncomes])
+    , [allIncomes])
 
   // Compute quarterly comparison from trends (current quarter = last 3 months, prev = 3 before that)
   const { currentQ, prevQ, qGrowthPct } = useMemo(() => {
@@ -97,10 +97,10 @@ export default function IncomePage() {
   // Compute income growth: last month vs month before
   const { growthAmt, growthPct } = useMemo(() => {
     if (trendsData.length < 2) return { growthAmt: 0, growthPct: null }
-    const last  = trendsData[trendsData.length - 1]
-    const prev  = trendsData[trendsData.length - 2]
-    const amt   = last.amount - prev.amount
-    const pct   = prev.amount > 0 ? (amt / prev.amount) * 100 : null
+    const last = trendsData[trendsData.length - 1]
+    const prev = trendsData[trendsData.length - 2]
+    const amt = last.amount - prev.amount
+    const pct = prev.amount > 0 ? (amt / prev.amount) * 100 : null
     return { growthAmt: amt, growthPct: pct }
   }, [trendsData])
 
@@ -132,7 +132,7 @@ export default function IncomePage() {
           </button>
         }
       />
-      
+
       {/* 5 Top Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="finora-card p-5 flex flex-col justify-between min-h-[130px]">
@@ -140,7 +140,10 @@ export default function IncomePage() {
           <div className="flex items-baseline gap-2 mt-auto">
             <h3 className="text-[22px] font-bold font-display text-on-surface">{formatCurrency(summary.monthly_total)}</h3>
             <span className="text-[11px] font-semibold text-tertiary bg-tertiary-fixed/40 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[13px]">trending_up</span>4.2%
+              <span className="material-symbols-outlined text-[13px]">
+                {(growthPct ?? 0) >= 0 ? 'trending_up' : 'trending_down'}
+              </span>
+              {Math.abs(growthPct ?? 0).toFixed(1)}%
             </span>
           </div>
         </div>
@@ -172,7 +175,7 @@ export default function IncomePage() {
 
       {/* Charts & Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Left Column (Span 2) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Main Chart Card */}
@@ -185,36 +188,36 @@ export default function IncomePage() {
                 <button onClick={() => setTrendPeriod('All')} className={`px-3 py-1 text-xs font-medium rounded ${trendPeriod === 'All' ? 'bg-surface-container-lowest shadow-sm text-on-surface' : 'text-on-surface-variant hover:text-on-surface'}`}>All</button>
               </div>
             </div>
-            
+
             {/* Mock Chart Visualization */}
             <div className="h-[220px] flex items-end justify-between gap-1 sm:gap-2 px-1 relative">
               <div className="absolute top-[20%] left-0 right-0 border-t border-dashed border-outline-variant z-0"></div>
-              
+
               {/* Dynamic Bars */}
               {(() => {
                 if (!trendsData.length || isTrendsLoading) return null;
-                
+
                 let data = trendsData;
                 if (trendPeriod === '6M') {
                   data = trendsData.slice(-6);
                 } else if (trendPeriod === '1Y' || trendPeriod === 'All') {
                   data = trendsData.slice(-12);
                 }
-                
+
                 const maxAmount = Math.max(...data.map((d: any) => d.amount), 1); // Avoid div by 0
-                
+
                 return data.map((d: any, i: number, arr: any[]) => {
                   const isHighest = d.amount === Math.max(...arr.map(x => x.amount)) && d.amount > 0;
                   const month = d.month;
                   const showLabel = trendPeriod === '6M' ? true : (i === 0 || i === Math.floor(arr.length / 2) || i === arr.length - 1);
                   const h = (d.amount / maxAmount) * 100;
-                  
+
                   return (
                     <div key={`${d.month}-${d.year}`} className="w-full h-full max-w-[48px] flex flex-col justify-end items-center gap-3 z-10 group cursor-pointer">
                       <div className={`w-full relative rounded-t transition-colors ${isHighest ? 'bg-primary' : 'bg-surface-variant group-hover:bg-outline-variant'}`} style={{ height: `${Math.max(h, 2)}%` }}>
                         {/* Tooltip on hover */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-inverse-surface text-inverse-on-surface text-[11px] font-medium px-3 py-1.5 rounded shadow whitespace-nowrap z-20 text-center pointer-events-none">
-                          {d.month} {d.year}:<br/>{formatCurrency(d.amount)}
+                          {d.month} {d.year}:<br />{formatCurrency(d.amount)}
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-inverse-surface rotate-45"></div>
                         </div>
                       </div>
@@ -277,7 +280,7 @@ export default function IncomePage() {
                 <p className={`text-[22px] font-bold font-display mb-1 ${growthAmt >= 0 ? 'text-on-surface' : 'text-secondary'}`}>
                   {growthAmt >= 0 ? '+' : ''}{formatCurrency(Math.abs(growthAmt))}
                 </p>
-                <p className="text-[11px] text-on-surface-variant font-medium leading-tight">vs. previous<br/>month</p>
+                <p className="text-[11px] text-on-surface-variant font-medium leading-tight">vs. previous<br />month</p>
               </div>
             </div>
           </div>
@@ -286,7 +289,7 @@ export default function IncomePage() {
         {/* Right Column - Distribution */}
         <div className="finora-card p-6 flex flex-col">
           <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-8">Income Distribution</h3>
-          
+
           <div className="flex-1 space-y-7">
             {isCategoriesLoading ? (
               <div className="h-[300px] flex items-center justify-center">
@@ -330,9 +333,9 @@ export default function IncomePage() {
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-[220px]">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
-              <input 
-                type="text" 
-                placeholder="Filter sources..." 
+              <input
+                type="text"
+                placeholder="Filter sources..."
                 className="w-full pl-9 pr-4 py-2 bg-surface-container-low border border-transparent focus:border-outline-variant rounded-md text-[13px] font-medium outline-none transition-colors text-on-surface placeholder:text-on-surface-variant"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -389,7 +392,7 @@ export default function IncomePage() {
                     </td>
                     <td className="px-6 py-4 text-on-surface-variant font-medium">
                       {tx.bank_account?.name || '-'}
-                      <br/>
+                      <br />
                       <span className="text-[11px] opacity-70">
                         {tx.bank_account?.account_number ? `(****${tx.bank_account.account_number.slice(-4)})` : ''}
                       </span>
@@ -401,7 +404,7 @@ export default function IncomePage() {
                         {tx.status || 'Completed'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-[11px] text-on-surface-variant font-medium">#TXN-{tx.id.substring(0,5)}</td>
+                    <td className="px-6 py-4 text-[11px] text-on-surface-variant font-medium">#TXN-{tx.id.substring(0, 5)}</td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-3">
                         <button onClick={() => handleEdit(tx)} className="text-on-surface-variant hover:text-primary transition-colors" title="Edit">
@@ -442,7 +445,7 @@ export default function IncomePage() {
         <div className="max-w-xl mx-auto text-center finora-card p-6 border-none bg-surface-container-low shadow-none">
           <h4 className="font-bold font-display text-on-surface mb-2 text-[15px]">Wealth Insights</h4>
           <p className="text-[13px] text-on-surface-variant mb-4 leading-relaxed font-medium">
-            Based on your current trajectory, your recurring income will <br className="hidden sm:block"/>
+            Based on your current trajectory, your recurring income will <br className="hidden sm:block" />
             surpass monthly expenses by Q2 next year.
           </p>
           <button className="text-[12px] text-primary font-bold border-b-2 border-outline-variant hover:border-primary pb-0.5 transition-colors">
@@ -461,15 +464,15 @@ export default function IncomePage() {
             </DialogDescription>
           </DialogHeader>
           {editingTransaction && (
-            <TransactionForm 
-              initialData={editingTransaction} 
+            <TransactionForm
+              initialData={editingTransaction}
               onSuccess={handleCloseModal}
               onCancel={handleCloseModal}
             />
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Dialog */}
       <ConfirmDialog
         open={!!transactionToDelete}
@@ -479,7 +482,7 @@ export default function IncomePage() {
         description="Are you sure you want to delete this income transaction? This will also revert the balance update on the associated bank account."
         confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
         variant="danger"
-            />
+      />
     </div>
   )
 }

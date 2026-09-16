@@ -5,10 +5,10 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-# System build deps: libpq for asyncpg, cairo/pango for WeasyPrint
+# System build deps: cairo/pango for WeasyPrint PDF generation
+# Note: asyncpg / libpq removed — Finora uses SQLite, not PostgreSQL.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    libpq-dev \
     libffi-dev \
     libcairo2 \
     libpango-1.0-0 \
@@ -30,7 +30,6 @@ WORKDIR /app
 
 # Runtime-only system libs (no build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
     libcairo2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -47,16 +46,18 @@ RUN addgroup --system finora && adduser --system --ingroup finora finora
 # Copy application source
 COPY --chown=finora:finora . .
 
-# Generated reports directory must be writable at runtime
-RUN mkdir -p generated_reports && chown finora:finora generated_reports
+# Writable directories needed at runtime
+RUN mkdir -p generated_reports .finora/cache .finora/state .finora/temp .finora/locks .finora/logs \
+    && chown -R finora:finora generated_reports .finora
 
 USER finora
 
-# Railway injects $PORT at runtime; default to 8000
+# Default port — override with PORT env var
 ENV PORT=8000
 EXPOSE 8000
 
-# Mirrors the Procfile exactly:
-# web: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Run migrations then start the server.
+# SQLite database file will be created automatically.
+# Set GOOGLE_DRIVE_ENABLED=true and mount credentials.json for Drive sync.
 CMD alembic upgrade head && \
     uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
