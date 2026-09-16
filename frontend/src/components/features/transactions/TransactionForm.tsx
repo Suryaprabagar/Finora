@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { transactionsApi, bankAccountsApi, settingsApi, creditCardsApi } from '@/lib/api'
+import { transactionsApi, expensesApi, bankAccountsApi, settingsApi, creditCardsApi } from '@/lib/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 const schema = z.object({
   type: z.enum(['income', 'expense', 'transfer']),
@@ -21,6 +21,35 @@ const schema = z.object({
   status: z.enum(['cleared', 'pending', 'failed']).default('cleared'),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
+  is_recurring: z.boolean().default(false),
+  recurrence_frequency: z.enum(['weekly', 'monthly', 'yearly']).optional().nullable(),
+  next_due_date: z.string().optional().nullable(),
+  recurrence_end_date: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.is_recurring) {
+    if (!data.recurrence_frequency) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Frequency is required for recurring expenses',
+        path: ['recurrence_frequency'],
+      })
+    }
+    if (!data.next_due_date || data.next_due_date.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Next due date is required',
+        path: ['next_due_date'],
+      })
+    } else if (data.recurrence_end_date && data.recurrence_end_date.trim() !== '') {
+      if (new Date(data.recurrence_end_date) < new Date(data.next_due_date)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'End date cannot be before next due date',
+          path: ['recurrence_end_date'],
+        })
+      }
+    }
+  }
 })
 
 type FormData = z.infer<typeof schema>
@@ -54,6 +83,8 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
   const creditCards = creditCardsRes?.data || []
   const categories = categoriesRes?.data || []
 
+  const todayStr = new Date().toISOString().split('T')[0]
+
   const {
     register,
     handleSubmit,
@@ -66,7 +97,7 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
     defaultValues: {
       type: 'expense',
       amount: 0,
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       description: '',
       category_id: null,
       account_id: '',
@@ -74,10 +105,23 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
       status: 'cleared',
       payment_method: '',
       notes: '',
+      is_recurring: false,
+      recurrence_frequency: 'monthly',
+      next_due_date: todayStr,
+      recurrence_end_date: '',
     },
   })
 
   const txType = watch('type')
+  const isRecurring = watch('is_recurring')
+  const dateValue = watch('date')
+
+  // When date changes and is_recurring is enabled without a custom next_due_date, sync next_due_date
+  useEffect(() => {
+    if (!isEditing && dateValue && !watch('next_due_date')) {
+      setValue('next_due_date', dateValue)
+    }
+  }, [dateValue, isEditing, setValue, watch])
 
   useEffect(() => {
     if (initialData) {
@@ -86,6 +130,9 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
       else if (initialData.credit_card_id) initialAccountId = `card:${initialData.credit_card_id}`
       else if (initialData.payment_method === 'cash') initialAccountId = 'cash'
       
+      const recFreq = (initialData.recurrence_frequency || initialData.recurring_interval || 'monthly').toLowerCase()
+      const validFreq = ['weekly', 'monthly', 'yearly'].includes(recFreq) ? recFreq : 'monthly'
+
       reset({
         type: initialData.type,
         amount: initialData.amount,
@@ -94,12 +141,16 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
         category_id: initialData.category_id || null,
         account_id: initialAccountId,
         merchant: initialData.merchant || '',
-        status: initialData.status,
+        status: initialData.status || 'cleared',
         payment_method: initialData.payment_method || '',
         notes: initialData.notes || '',
+        is_recurring: Boolean(initialData.is_recurring),
+        recurrence_frequency: validFreq as 'weekly' | 'monthly' | 'yearly',
+        next_due_date: initialData.next_due_date || initialData.date || todayStr,
+        recurrence_end_date: initialData.recurrence_end_date || '',
       })
     }
-  }, [initialData, reset])
+  }, [initialData, reset, todayStr])
 
   const mutation = useMutation({
     mutationFn: (data: FormData) => {
@@ -115,29 +166,48 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
         credit_card_id = data.account_id.split(':')[1]
         payment_method = 'card'
       }
+
+      const recActive = Boolean(data.is_recurring)
       
-      // Convert empty strings to null for optional relations
-      const payload = {
+      const payload: any = {
         ...data,
         bank_account_id,
         credit_card_id,
         payment_method: payment_method || null,
         category_id: data.category_id === '' ? null : data.category_id,
+        is_recurring: recActive,
+        recurrence_frequency: recActive ? data.recurrence_frequency : null,
+        recurring_interval: recActive ? data.recurrence_frequency : null,
+        next_due_date: recActive && data.next_due_date ? data.next_due_date : null,
+        recurrence_end_date: recActive && data.recurrence_end_date ? data.recurrence_end_date : null,
       }
-      return isEditing 
-        ? transactionsApi.update(initialData.id, payload)
-        : transactionsApi.create(payload)
+
+      if (data.type === 'expense') {
+        return isEditing 
+          ? expensesApi.update(initialData.id, payload)
+          : expensesApi.create(payload)
+      } else {
+        return isEditing 
+          ? transactionsApi.update(initialData.id, payload)
+          : transactionsApi.create(payload)
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
+      queryClient.invalidateQueries({ queryKey: ['budget-current'] })
       queryClient.invalidateQueries({ queryKey: ['income-list'] })
       queryClient.invalidateQueries({ queryKey: ['income-summary'] })
       queryClient.invalidateQueries({ queryKey: ['income-by-category'] })
       queryClient.invalidateQueries({ queryKey: ['expenses-list'] })
       queryClient.invalidateQueries({ queryKey: ['expenses-summary'] })
       queryClient.invalidateQueries({ queryKey: ['expenses-by-category'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-trends'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-by-merchant'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-recurring'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-upcoming-recurring'] })
       toast.success(isEditing ? 'Transaction updated' : 'Transaction created')
       onSuccess?.()
     },
@@ -160,7 +230,12 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
           <button
             key={t}
             type="button"
-            onClick={() => setValue('type', t)}
+            onClick={() => {
+              setValue('type', t)
+              if (t !== 'expense') {
+                setValue('is_recurring', false)
+              }
+            }}
             className={`flex-1 py-2 text-sm font-medium rounded-md capitalize transition-colors ${
               txType === t
                 ? 'bg-white shadow text-[#1f1b18]'
@@ -233,7 +308,7 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-         <div className="space-y-2">
+        <div className="space-y-2">
           <Label htmlFor="merchant">Merchant (Optional)</Label>
           <Input id="merchant" placeholder="e.g. Walmart" {...register('merchant')} />
         </div>
@@ -250,6 +325,58 @@ export function TransactionForm({ initialData, onSuccess, onCancel }: Transactio
           </select>
         </div>
       </div>
+
+      {/* Recurrence Section (Expense Only) */}
+      {txType === 'expense' && (
+        <div className="pt-2 border-t border-[#d5c3b8]/40">
+          <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-[#d5c3b8] text-primary focus:ring-primary accent-[#6f4627]"
+              {...register('is_recurring')}
+            />
+            <span className="text-sm font-semibold text-[#1f1b18]">Recurring Expense</span>
+          </label>
+
+          {isRecurring && (
+            <div className="p-3 bg-surface-container-low rounded-lg space-y-3 border border-outline-variant/30 mt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="recurrence_frequency">Frequency *</Label>
+                  <select
+                    id="recurrence_frequency"
+                    className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
+                    {...register('recurrence_frequency')}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                  {errors.recurrence_frequency && (
+                    <p className="text-xs text-error">{errors.recurrence_frequency.message as string}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="next_due_date">Next Due Date *</Label>
+                  <Input id="next_due_date" type="date" {...register('next_due_date')} />
+                  {errors.next_due_date && (
+                    <p className="text-xs text-error">{errors.next_due_date.message as string}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="recurrence_end_date">End Date (Optional)</Label>
+                <Input id="recurrence_end_date" type="date" {...register('recurrence_end_date')} />
+                {errors.recurrence_end_date && (
+                  <p className="text-xs text-error">{errors.recurrence_end_date.message as string}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="pt-4 flex justify-end gap-3">
         {onCancel && (

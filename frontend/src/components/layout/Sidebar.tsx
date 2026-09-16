@@ -11,7 +11,6 @@ const navItems = [
   { name: 'Transactions', href: '/transactions', icon: 'swap_horiz' },
   { name: 'Income', href: '/income', icon: 'trending_up' },
   { name: 'Expenses', href: '/expenses', icon: 'receipt_long' },
-  { name: 'Budget', href: '/budget', icon: 'account_balance_wallet' },
   { name: 'Bank Accounts', href: '/bank-accounts', icon: 'account_balance' },
   { name: 'Credit Cards', href: '/credit-cards', icon: 'credit_card' },
   { name: 'Investments', href: '/investments', icon: 'show_chart' },

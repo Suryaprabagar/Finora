@@ -93,6 +93,16 @@ async def lifespan(app: FastAPI):
         print("\n[2/4] Google Drive sync: DISABLED (set GOOGLE_DRIVE_ENABLED=true to enable).")
 
     print("\n[3/4] Preparing application...")
+    try:
+        from app.services.recurring_service import process_due_recurring_expenses
+        async with AsyncSessionLocal() as session:
+            processed = await process_due_recurring_expenses(session)
+            if processed:
+                print(f"      Processed {len(processed)} due recurring expense transaction(s).")
+    except Exception as exc:
+        logger.error(f"Error processing recurring expenses on startup: {exc}", exc_info=True)
+        print(f"      [WARNING] Recurring expense processing error: {exc}")
+
     print("\n[4/4] Starting FastAPI server...")
     print("Finora ready.\n")
 

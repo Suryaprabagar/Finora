@@ -41,7 +41,8 @@ async def get_transactions(
 ):
     query = select(Transaction).where(
         Transaction.user_id == current_user.id,
-        Transaction.deleted_at.is_(None)
+        Transaction.deleted_at.is_(None),
+        or_(Transaction.is_recurring.is_(False), Transaction.recurring_parent_id.isnot(None))
     ).options(selectinload(Transaction.category), selectinload(Transaction.bank_account))
 
     if type:
@@ -95,27 +96,41 @@ async def create_transaction(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    transaction = Transaction(**data.model_dump(), user_id=current_user.id)
+    dump = data.model_dump()
+    if dump.get("is_recurring"):
+        freq = dump.get("recurrence_frequency") or dump.get("recurring_interval") or "monthly"
+        dump["recurrence_frequency"] = freq
+        dump["recurring_interval"] = freq
+
+    transaction = Transaction(**dump, user_id=current_user.id)
     db.add(transaction)
     
-    if data.bank_account_id:
-        bank_account = await db.get(BankAccount, data.bank_account_id)
-        if bank_account and bank_account.user_id == current_user.id:
-            if transaction.type == "income":
-                bank_account.balance += transaction.amount
-            elif transaction.type == "expense":
-                bank_account.balance -= transaction.amount
-                
-    if data.credit_card_id:
-        credit_card = await db.get(CreditCard, data.credit_card_id)
-        if credit_card and credit_card.user_id == current_user.id:
-            if transaction.type == "expense":
-                credit_card.outstanding_balance += transaction.amount
-            elif transaction.type == "income":
-                credit_card.outstanding_balance = max(0, credit_card.outstanding_balance - transaction.amount)
+    # Only adjust account balances immediately if NOT a recurring template schedule
+    if not data.is_recurring:
+        if data.bank_account_id:
+            bank_account = await db.get(BankAccount, data.bank_account_id)
+            if bank_account and bank_account.user_id == current_user.id:
+                if transaction.type == "income":
+                    bank_account.balance += transaction.amount
+                elif transaction.type == "expense":
+                    bank_account.balance -= transaction.amount
+                    
+        if data.credit_card_id:
+            credit_card = await db.get(CreditCard, data.credit_card_id)
+            if credit_card and credit_card.user_id == current_user.id:
+                if transaction.type == "expense":
+                    credit_card.outstanding_balance += transaction.amount
+                elif transaction.type == "income":
+                    credit_card.outstanding_balance = max(0, credit_card.outstanding_balance - transaction.amount)
     
     await db.commit()
     await db.refresh(transaction)
+
+    # If recurring and next_due_date <= today, process it
+    if transaction.is_recurring and transaction.next_due_date and transaction.next_due_date <= date.today():
+        from app.services.recurring_service import process_due_recurring_expenses
+        await process_due_recurring_expenses(db, user_id=current_user.id)
+        await db.refresh(transaction)
     
     # Reload with relationships
     result = await db.execute(

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import String, DateTime, Date, ForeignKey, func, Numeric, Text, Boolean
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid
 from app.core.database import Base
 
@@ -26,11 +26,18 @@ class Transaction(Base):
     reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    recurring_interval: Mapped[str | None] = mapped_column(String(20), nullable=True)  # daily | weekly | monthly | yearly
+    recurring_interval: Mapped[str | None] = mapped_column(String(20), nullable=True)  # weekly | monthly | yearly
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    recurrence_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    recurring_parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("transactions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     tags: Mapped[str | None] = mapped_column(String(255), nullable=True)  # comma-separated
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    recurrence_frequency = synonym("recurring_interval")
 
     user: Mapped["User"] = relationship(back_populates="transactions")
     category: Mapped["Category | None"] = relationship(back_populates="transactions")
@@ -39,3 +46,9 @@ class Transaction(Base):
         foreign_keys=[bank_account_id],
     )
     credit_card: Mapped["CreditCard | None"] = relationship(back_populates="transactions")
+    recurring_parent: Mapped["Transaction | None"] = relationship(
+        "Transaction",
+        remote_side=[id],
+        backref="recurring_instances",
+        foreign_keys=[recurring_parent_id],
+    )

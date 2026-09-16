@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 
 from app.models.user import User
 from app.models.category import Category
@@ -95,6 +95,11 @@ async def restore_user_data(db: AsyncSession, user_id: uuid.UUID, backup_data: d
             )
         ))
         
+    # Clear self-referential FKs on transactions before deletion
+    await db.execute(
+        update(Transaction).where(Transaction.user_id == user_id).values(recurring_parent_id=None)
+    )
+
     for model in reversed(ROOT_MODELS): # reverse to delete transactions before accounts if necessary
         await db.execute(delete(model).where(model.user_id == user_id))
         

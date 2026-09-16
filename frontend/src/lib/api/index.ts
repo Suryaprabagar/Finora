@@ -143,6 +143,8 @@ export const expensesApi = {
   getByCategory: () => apiClientModule.get<APIResponse<any[]>>('/expenses/by-category'),
   getByMerchant: () => apiClientModule.get<APIResponse<any[]>>('/expenses/by-merchant'),
   getTrends: () => apiClientModule.get<APIResponse<any[]>>('/expenses/trends'),
+  getRecurring: (params = {}) => apiClientModule.get<APIResponse<any[]>>('/expenses/recurring', { params }),
+  getUpcomingRecurring: () => apiClientModule.get<APIResponse<any[]>>('/expenses/upcoming-recurring'),
   create: (data: unknown) => apiClientModule.post<APIResponse<any>>('/expenses', data),
   update: (id: string, data: unknown) => apiClientModule.put<APIResponse<any>>(`/expenses/${id}`, data),
   delete: (id: string) => apiClientModule.delete<APIResponse<null>>(`/expenses/${id}`),

@@ -109,7 +109,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         next_coupon_date: data.next_coupon_date === '' ? null : data.next_coupon_date,
         coupon_frequency: data.coupon_frequency === '' ? null : data.coupon_frequency
       }
-      return isEditing 
+      return isEditing
         ? investmentsApi.update(initialData.id, payload)
         : investmentsApi.create(payload)
     },
@@ -141,7 +141,7 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
   }
 
   const selectedType = watch('type')
-  const showSymbol = ['stock', 'mutual_fund', 'crypto'].includes(selectedType)
+  const showSymbol = ['stock', 'mutual_fund', 'crypto', 'gold'].includes(selectedType)
   const isFixedIncome = ['fd', 'bonds', 'other'].includes(selectedType)
 
   return (
@@ -163,8 +163,8 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="type">Investment Type *</Label>
-          <select 
-            id="type" 
+          <select
+            id="type"
             className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
             {...register('type')}
           >
@@ -192,13 +192,13 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
             {errors.quantity && <p className="text-sm text-error">{errors.quantity.message}</p>}
           </div>
         )}
-        
+
         <div className="space-y-2">
           <Label htmlFor="purchase_price">{isFixedIncome ? 'Principal / Invested Amount *' : 'Buy Price (Average) *'}</Label>
           <Input id="purchase_price" type="number" step="0.01" {...register('purchase_price')} />
           {errors.purchase_price && <p className="text-sm text-error">{errors.purchase_price.message}</p>}
         </div>
-        
+
         {!showSymbol && !isFixedIncome && (
           <div className="space-y-2">
             <Label htmlFor="current_price">Current Unit Price *</Label>
@@ -225,8 +225,8 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="coupon_frequency">Frequent Pay</Label>
-            <select 
-              id="coupon_frequency" 
+            <select
+              id="coupon_frequency"
               className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
               {...register('coupon_frequency')}
             >
@@ -258,8 +258,8 @@ export function InvestmentForm({ initialData, onSuccess, onCancel }: InvestmentF
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="bank_account_id">Linked Bank Account {selectedType === 'bonds' && '*'}</Label>
-          <select 
-            id="bank_account_id" 
+          <select
+            id="bank_account_id"
             className="flex h-10 w-full rounded-md border border-[#d5c3b8] bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6f4627] text-[#1f1b18]"
             {...register('bank_account_id')}
           >

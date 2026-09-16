@@ -63,9 +63,31 @@ export interface Transaction {
   reference_number?: string
   notes?: string
   is_recurring: boolean
+  recurrence_frequency?: 'weekly' | 'monthly' | 'yearly' | string
   recurring_interval?: string
+  next_due_date?: string
+  recurrence_end_date?: string
+  recurring_parent_id?: string
   tags?: string
   created_at: string
+}
+
+export interface UpcomingRecurringItem {
+  id: string
+  merchant?: string
+  description: string
+  amount: number
+  frequency: string
+  next_due_date?: string
+  recurrence_end_date?: string
+  days_until_due?: number
+  category_id?: string
+  category?: Category
+  category_name?: string
+  bank_account_id?: string
+  status: string
+  is_recurring: boolean
+  created_at?: string
 }
 
 // ============ Category Types ============

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { expensesApi } from '@/lib/api'
+import { expensesApi, budgetApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { DonutChart } from '@/components/shared/charts/DonutChart'
 import { downloadCSV } from '@/lib/export'
@@ -60,6 +60,11 @@ export default function ExpensesPage() {
     queryFn: () => budgetApi.getCurrent().then(r => r.data),
   })
 
+  const { data: upcomingRes, isLoading: isUpcomingLoading } = useQuery({
+    queryKey: ['expenses-upcoming-recurring'],
+    queryFn: () => expensesApi.getUpcomingRecurring().then(r => r.data),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expensesApi.delete(id),
     onSuccess: () => {
@@ -68,6 +73,8 @@ export default function ExpensesPage() {
       queryClient.invalidateQueries({ queryKey: ['expenses-by-category'] })
       queryClient.invalidateQueries({ queryKey: ['expenses-trends'] })
       queryClient.invalidateQueries({ queryKey: ['expenses-by-merchant'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-recurring'] })
+      queryClient.invalidateQueries({ queryKey: ['expenses-upcoming-recurring'] })
       queryClient.invalidateQueries({ queryKey: ['budget-current'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
 
@@ -79,10 +86,11 @@ export default function ExpensesPage() {
     }
   })
 
-  const summary = summaryRes?.data || { monthly_total: 0, top_category: 'None', avg_daily: 0 }
+  const summary = summaryRes?.data || { monthly_total: 0, top_category: 'None', avg_daily: 0, recurring_total: 0, recurring_count: 0 }
   const categoriesData = categoriesRes?.data || []
   const trendsData = trendsRes?.data || []
   const merchantsData = merchantsRes?.data || []
+  const upcomingItems = upcomingRes?.data || []
   const currentBudget = budgetRes?.data || null
   const expenses = useMemo(() => {
     const list = listRes?.data || []
@@ -585,51 +593,118 @@ export default function ExpensesPage() {
         <div className="finora-card p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">Upcoming Recurring</h3>
-            <span className="text-[11px] font-bold text-primary cursor-pointer">View All</span>
+            {upcomingItems.length > 0 && (
+              <span className="text-[11px] font-bold text-primary">
+                {upcomingItems.length} active
+              </span>
+            )}
           </div>
-          <div className="space-y-4">
-            {[
-              { n: 'AWS Cloud Services', d: 'Due in 2 days', a: 342.00, i: 'cloud' },
-              { n: 'Netflix & Media Bundle', d: 'Due in 5 days', a: 24.99, i: 'subscriptions' },
-              { n: 'Equinox Premium', d: 'Due in 12 days', a: 215.00, i: 'fitness_center' }
-            ].map((sub, i) => (
-              <div key={i} className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[18px]">{sub.i}</span>
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-bold text-on-surface">{sub.n}</p>
-                    <p className="text-[11px] text-on-surface-variant font-medium">{sub.d}</p>
-                  </div>
-                </div>
-                <span className="font-bold font-display text-[14px] text-on-surface">{formatCurrency(sub.a)}</span>
+          {isUpcomingLoading ? (
+            <div className="py-8 text-center text-on-surface-variant text-xs font-medium">
+              Loading recurring expenses...
+            </div>
+          ) : upcomingItems.length === 0 ? (
+            <div className="py-8 text-center text-on-surface-variant flex flex-col items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant mb-2">
+                <span className="material-symbols-outlined text-[20px]">repeat</span>
               </div>
-            ))}
-          </div>
+              <p className="text-[13px] font-semibold text-on-surface">No recurring expenses</p>
+              <p className="text-[11px] text-on-surface-variant mt-0.5">Scheduled bills and subscriptions will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {upcomingItems.map((sub: any) => (
+                <div key={sub.id} className="flex justify-between items-center">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface-variant shrink-0">
+                      <span className="material-symbols-outlined text-[18px]">
+                        {sub.category?.icon || 'repeat'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-on-surface truncate">
+                        {sub.merchant || sub.description || 'Recurring Expense'}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant font-medium">
+                        {sub.days_until_due === null || sub.days_until_due === undefined
+                          ? (sub.next_due_date ? formatDate(sub.next_due_date) : 'Scheduled')
+                          : sub.days_until_due === 0
+                            ? 'Due today'
+                            : sub.days_until_due === 1
+                              ? 'Due tomorrow'
+                              : sub.days_until_due < 0
+                                ? `Overdue by ${Math.abs(sub.days_until_due)} days`
+                                : `Due in ${sub.days_until_due} days`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-bold font-display text-[14px] text-on-surface shrink-0 ml-2">
+                    {formatCurrency(sub.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="finora-card p-6">
-          <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-6">Budget Consumption</h3>
+          <h3 className="text-[10px] font-bold tracking-widest text-on-surface-variant uppercase mb-6">
+            Budget Consumption
+          </h3>
+
           <div className="space-y-6">
-            {[
-              { n: 'Housing & Utilities', u: 2800, m: 3000, p: '90%' },
-              { n: 'Entertainment', u: 840, m: 1200, p: '70%' },
-              { n: 'Personal Growth', u: 120, m: 500, p: '24%' }
-            ].map((b, i) => (
-              <div key={i} className="space-y-2">
-                <div className="flex justify-between items-end">
-                  <span className="text-[12px] font-bold text-on-surface">{b.n}</span>
-                  <div className="text-[11px]">
-                    <span className="text-on-surface-variant font-medium">{formatCurrency(b.u)}</span>
-                    <span className="text-on-surface-variant opacity-60"> / {formatCurrency(b.m)}</span>
+            {isBudgetLoading ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2 animate-pulse">
+                  <div className="flex justify-between">
+                    <div className="h-3 w-32 bg-surface-container rounded" />
+                    <div className="h-3 w-24 bg-surface-container rounded" />
                   </div>
+                  <div className="w-full h-1.5 bg-surface-container rounded-full" />
                 </div>
-                <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full" style={{ width: b.p }}></div>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : currentBudget?.items?.length > 0 ? (
+              currentBudget.items.map((item: any, i: number) => {
+                const allocated = Number(item.allocated_amount) || 0
+                const spent = Number(item.spent_amount) || 0
+                const percentage =
+                  allocated > 0
+                    ? Math.min((spent / allocated) * 100, 100)
+                    : 0
+
+                return (
+                  <div key={item.id || i} className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <span className="text-[12px] font-bold text-on-surface">
+                        {item.name || item.category?.name || 'Uncategorized'}
+                      </span>
+
+                      <div className="text-[11px]">
+                        <span className="text-on-surface-variant font-medium">
+                          {formatCurrency(spent)}
+                        </span>
+
+                        <span className="text-on-surface-variant opacity-60">
+                          {' / '}{formatCurrency(allocated)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <EmptyState
+                title="No budget set for this month"
+                icon="account_balance"
+              />
+            )}
           </div>
         </div>
 
