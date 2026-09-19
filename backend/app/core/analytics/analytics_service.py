@@ -1,3 +1,4 @@
+from app.api.v1 import dashboard
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, Any
@@ -58,125 +59,239 @@ class AnalyticsService:
         }
 
     @staticmethod
-    async def get_reports_analytics(db: AsyncSession, user_id: uuid.UUID) -> Dict[str, Any]:
-        """Orchestrates all analytics services for the reports dashboard payload.
+    async def get_reports_analytics(
+        db: AsyncSession,
+        user_id: uuid.UUID
+    ) -> Dict[str, Any]:
+        """Build reports dashboard analytics from real user data only."""
 
-        All DB queries run concurrently via asyncio.gather.
-        """
         today = datetime.utcnow().date()
-        six_months_ago   = today.replace(day=1) - timedelta(days=180)
+        six_months_ago = today.replace(day=1) - timedelta(days=180)
         current_month_start = today.replace(day=1)
 
-        # Run all 5 DB queries in parallel
-        income_res, exp_res, budget_res, actual_res, inv_res = await asyncio.gather(
-            db.execute(
-                select(
-                    func.extract('month', Transaction.date).label('month'),
-                    func.extract('year',  Transaction.date).label('year'),
-                    func.sum(Transaction.amount).label('total')
-                )
-                .where(
-                    Transaction.user_id == user_id,
-                    Transaction.type == 'income',
-                    Transaction.date >= six_months_ago
-                )
-                .group_by(
-                    func.extract('year',  Transaction.date),
-                    func.extract('month', Transaction.date)
-                )
-                .order_by(
-                    func.extract('year',  Transaction.date),
-                    func.extract('month', Transaction.date)
-                )
-            ),
-            db.execute(
-                select(Category.name, func.sum(Transaction.amount).label('total'))
-                .join(Category, Transaction.category_id == Category.id)
-                .where(Transaction.user_id == user_id, Transaction.type == 'expense')
-                .group_by(Category.name)
-            ),
-            db.execute(
-                select(func.sum(Budget.total_limit)).where(Budget.user_id == user_id)
-            ),
-            db.execute(
-                select(func.sum(Transaction.amount))
-                .where(
-                    Transaction.user_id == user_id,
-                    Transaction.type == 'expense',
-                    Transaction.date >= current_month_start
-                )
-            ),
-            db.execute(
-                select(Investment).where(
-                    Investment.user_id == user_id,
-                    Investment.is_active.is_(True)
-                )
-            ),
+    # ---------------------------------------------------------
+    # Monthly income + expense data
+    # ---------------------------------------------------------
+        transaction_res = await db.execute(
+            select(
+                func.extract('year', Transaction.date).label('year'),
+                func.extract('month', Transaction.date).label('month'),
+                Transaction.type.label('type'),
+                func.sum(Transaction.amount).label('total')
+            )
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type.in_(['income', 'expense']),
+                Transaction.date >= six_months_ago
+            )
+            .group_by(
+                func.extract('year', Transaction.date),
+                func.extract('month', Transaction.date),
+                Transaction.type
+            )
+            .order_by(
+                func.extract('year', Transaction.date),
+                func.extract('month', Transaction.date)
+            )
         )
 
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        income_data = [
-            {"name": months[int(row.month) - 1], "value": float(row.total)}
-            for row in income_res.all()
+    # ---------------------------------------------------------
+    # Expense breakdown by category
+    # ---------------------------------------------------------
+        exp_res = await db.execute(
+            select(
+                Category.name,
+                func.sum(Transaction.amount).label('total')
+            )
+            .join(
+                Category,
+                Transaction.category_id == Category.id
+            )
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == 'expense'
+            )
+            .group_by(Category.name)
+            .order_by(func.sum(Transaction.amount).desc())
+        )
+
+    # ---------------------------------------------------------
+    # Total budget
+    # ---------------------------------------------------------
+        budget_res = await db.execute(
+            select(func.sum(Budget.total_limit))
+            .where(Budget.user_id == user_id)
+        )
+
+    # ---------------------------------------------------------
+    # Current month actual expenses
+    # ---------------------------------------------------------
+        actual_res = await db.execute(
+            select(func.sum(Transaction.amount))
+            .where(
+                Transaction.user_id == user_id,
+                Transaction.type == 'expense',
+                Transaction.date >= current_month_start
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Investments
+    # ---------------------------------------------------------
+        inv_res = await db.execute(
+            select(Investment)
+            .where(
+                Investment.user_id == user_id,
+                Investment.is_active.is_(True),
+                Investment.deleted_at.is_(None)
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Build monthly income / expense / cash flow
+    # ---------------------------------------------------------
+        months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
         ]
 
-        expenses_data = []
-        total_exp = 0
-        for row in exp_res.all():
-            expenses_data.append({"name": row.name, "value": float(row.total)})
-            total_exp += float(row.total)
-        for e in expenses_data:
-            e["percentage"] = round((e["value"] / total_exp) * 100) if total_exp > 0 else 0
+        monthly_data = {}
 
+        for row in transaction_res.all():
+            year = int(row.year)
+            month = int(row.month)
+
+            key = (year, month)
+
+            if key not in monthly_data:
+                monthly_data[key] = {
+                    "name": months[month - 1],
+                    "year": year,
+                    "income": 0.0,
+                    "expenses": 0.0,
+                    "value": 0.0
+                }
+
+            amount = float(row.total or 0)
+
+            if row.type == 'income':
+                monthly_data[key]["income"] += amount
+
+            elif row.type == 'expense':
+                monthly_data[key]["expenses"] += amount
+
+        monthly_rows = [
+            monthly_data[key]
+            for key in sorted(monthly_data.keys())
+        ]
+
+    # ---------------------------------------------------------
+    # Real cash flow = income - expenses
+    # ---------------------------------------------------------
+        for row in monthly_rows:
+            row["value"] = round(
+                row["income"] - row["expenses"],
+                2
+            )
+
+    # Income chart
+        income_data = [
+            {
+                "name": row["name"],
+                "value": row["income"]
+            }
+            for row in monthly_rows
+            if row["income"] > 0
+        ]
+
+    # Cash flow chart
+        cashflow_data = [
+            {
+                "name": row["name"],
+                "value": row["value"]
+            }
+            for row in monthly_rows
+        ]
+
+    # ---------------------------------------------------------
+    # Expenses breakdown
+    # ---------------------------------------------------------
+        expenses_data = []
+        total_exp = 0.0
+
+        for row in exp_res.all():
+            value = float(row.total or 0)
+
+            expenses_data.append({
+                "name": row.name,
+                "value": value
+            })
+
+            total_exp += value
+
+        for expense in expenses_data:
+            expense["percentage"] = (
+                round((expense["value"] / total_exp) * 100)
+                if total_exp > 0
+                else 0
+            )
+
+    # ---------------------------------------------------------
+    # Budget
+    # ---------------------------------------------------------
         total_budget = float(budget_res.scalar() or 0)
         total_actual = float(actual_res.scalar() or 0)
-        budget_data  = {
-            "budget":   total_budget,
-            "actual":   total_actual,
+
+        budget_data = {
+            "budget": total_budget,
+            "actual": total_actual,
             "variance": total_budget - total_actual
         }
 
-        cashflow_data = [{"name": inc["name"], "value": inc["value"] * 0.4} for inc in income_data]
-        if not cashflow_data:
-            cashflow_data = [
-                {'name': 'Jan', 'value': 100}, {'name': 'Feb', 'value': 120},
-                {'name': 'Mar', 'value': 250}, {'name': 'Apr', 'value': 180},
-                {'name': 'May', 'value': 400}, {'name': 'Jun', 'value': 280}
-            ]
-
+    # ---------------------------------------------------------
+    # Investment allocation
+    # ---------------------------------------------------------
         investments = inv_res.scalars().all()
-        allocation  = AllocationService.calculate_allocation(investments)
 
-        # Compute real net worth growth from portfolio snapshots (no hardcoded values)
-        growth_history = await PortfolioService.get_growth_history(db, user_id)
-        net_worth_growth_pct: float | None = None
+        allocation = AllocationService.calculate_allocation(
+            investments
+        )
+
+    # ---------------------------------------------------------
+    # Net worth growth
+    # ---------------------------------------------------------
+        growth_history = await PortfolioService.get_growth_history(
+            db,
+            user_id
+        )
+
+        net_worth_growth_pct = None
+
         if growth_history and len(growth_history) >= 2:
             first_val = growth_history[0]["value"]
-            last_val  = growth_history[-1]["value"]
-            if first_val > 0:
-                net_worth_growth_pct = round(((last_val - first_val) / first_val) * 100, 1)
+            last_val = growth_history[-1]["value"]
 
+            if first_val > 0:
+                net_worth_growth_pct = round(
+                    ((last_val - first_val) / first_val) * 100,
+                    1
+                )
+
+    # ---------------------------------------------------------
+    # Final response
+    # ---------------------------------------------------------
         return {
-            "income": income_data or [
-                {'name': 'Jan', 'value': 2500}, {'name': 'Feb', 'value': 3000},
-                {'name': 'Mar', 'value': 2800}, {'name': 'Apr', 'value': 3500},
-                {'name': 'May', 'value': 4200}, {'name': 'Jun', 'value': 3200}
-            ],
-            "expenses": expenses_data or [
-                {'name': 'Housing',    'percentage': 35},
-                {'name': 'Investment', 'percentage': 25},
-                {'name': 'Lifestyle',  'percentage': 20},
-                {'name': 'Other',      'percentage': 20}
-            ],
-            "budget":   budget_data if total_budget > 0 else {"budget": 5000, "actual": 6200, "variance": -1200},
+            "income": income_data,
+
+            "expenses": expenses_data,
+
+            "budget": budget_data,
+
             "cashflow": cashflow_data,
+
             "net_worth_growth_pct": net_worth_growth_pct,
+
             "investments": {
-                "allocation": allocation["distribution"] if allocation["distribution"] else {"Stocks": 60, "Bonds": 25, "Crypto": 15},
-                # NOTE: sharpe_ratio and volatility require historical return series which are not yet tracked.
-                # These are left as placeholders until daily price feeds are integrated.
-                "sharpe_ratio": None,
-                "volatility":   None
+                "allocation": allocation["distribution"]
             }
         }

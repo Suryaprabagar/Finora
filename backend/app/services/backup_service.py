@@ -55,8 +55,7 @@ async def export_user_data(db: AsyncSession, user_id: uuid.UUID) -> dict:
     if user:
         user_dict = {}
         for c in User.__table__.columns:
-            if c.name not in ["hashed_password"]:
-                user_dict[c.name] = serialize_value(getattr(user, c.name))
+            user_dict[c.name] = serialize_value(getattr(user, c.name))
         data["User"] = [user_dict]
 
     # 2. Export Root Models

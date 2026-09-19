@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
@@ -486,25 +487,95 @@ class StorageManager:
         return all_data
 
     async def _restore_to_sqlite(self, data: dict) -> None:
-        """Restore exported data back into SQLite using backup_service."""
+        """Restore the complete cloud state into local SQLite.
+
+        Users contained in the cloud state are created locally when missing.
+        Existing users are updated, then all user-related data is restored.
+        """
         from app.services.backup_service import restore_user_data
         from app.models.user import User
         from sqlalchemy import select
-
-        # backup_service.restore_user_data works per user_id.
-        # We reconstruct the per-user dicts from the merged data.
-        import uuid as _uuid
+        import uuid
 
         async with self._db_factory() as db:
-            result = await db.execute(select(User))
-            users = result.scalars().all()
 
-            for user in users:
-                user_id_str = str(user.id)
-                # Build per-user slice of the backup data
-                user_data = self._slice_user_data(data, user_id_str)
-                await restore_user_data(db, user.id, user_data)
-            await db.commit()
+        # ---------------------------------------------------------
+        # 1. Restore/create every user contained in the cloud state
+        # ---------------------------------------------------------
+            cloud_users = data.get("User", [])
+
+        if not cloud_users:
+            logger.warning("Cloud state contains no users.")
+            return
+
+        user_ids = []
+
+        for user_backup in cloud_users:
+            if "id" not in user_backup:
+                logger.warning("Skipping cloud user without an ID.")
+                continue
+
+            user_id = uuid.UUID(str(user_backup["id"]))
+
+            result = await db.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+
+            if user is None:
+                user = User(
+                    id=user_id,
+                    email=user_backup["email"],
+                    full_name=user_backup["full_name"],
+                    hashed_password=user_backup["hashed_password"],
+                    is_active=user_backup.get("is_active", True),
+                    is_superuser=user_backup.get("is_superuser", False),
+                    currency=user_backup.get("currency", "INR"),
+                    currency_symbol=user_backup.get("currency_symbol", "₹"),
+                    theme=user_backup.get("theme", "light"),
+                    phone=user_backup.get("phone"),
+                    avatar_url=user_backup.get("avatar_url"),
+                    reset_token=user_backup.get("reset_token"),
+                    reset_token_expires=(
+                        datetime.fromisoformat(
+                            user_backup["reset_token_expires"]
+                        )
+                        if user_backup.get("reset_token_expires")
+                        else None
+                    ),
+                )
+
+                db.add(user)
+
+                logger.info(
+                    f"Created restored user: {user.email}"
+                )
+
+            user_ids.append(user_id)
+
+        # Make newly-created users available before restoring related data.
+        await db.flush()
+
+        # ---------------------------------------------------------
+        # 2. Restore each user's data
+        # ---------------------------------------------------------
+        for user_id in user_ids:
+            user_data = self._slice_user_data(
+                data,
+                str(user_id)
+            )
+
+            await restore_user_data(
+                db,
+                user_id,
+                user_data
+            )
+
+        await db.commit()
+
+        logger.info(
+            f"Cloud state restored successfully for {len(user_ids)} user(s)."
+        )
 
     def _slice_user_data(self, all_data: dict, user_id_str: str) -> dict:
         """Filter ``all_data`` to rows belonging to ``user_id_str``."""
