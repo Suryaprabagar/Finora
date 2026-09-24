@@ -42,9 +42,27 @@ export interface APIError {
 }
 
 // ============ Transaction Types ============
-export type TransactionType = 'income' | 'expense' | 'transfer'
+
+export type TransactionType = 'income' | 'expense'
+
+export interface Budget {
+  id: string
+  amount: number
+  month: string
+  category_id?: string
+  category?: Category
+  notes?: string
+  created_at: string
+}
+
 export type TransactionStatus = 'cleared' | 'pending' | 'reconciled'
-export type PaymentMethod = 'cash' | 'card' | 'upi' | 'netbanking' | 'cheque'
+
+export type PaymentMethod =
+  | 'cash'
+  | 'card'
+  | 'upi'
+  | 'netbanking'
+  | 'cheque'
 
 export interface Transaction {
   id: string

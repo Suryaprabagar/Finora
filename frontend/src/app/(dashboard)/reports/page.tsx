@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { DataTable } from '@/components/shared/DataTable'
 import { createColumnHelper } from '@tanstack/react-table'
 import { format } from 'date-fns'
-import { 
+import {
   BarChart, Bar, Tooltip, ResponsiveContainer, Cell,
   AreaChart, Area
 } from 'recharts'
@@ -32,10 +32,26 @@ export default function ReportsPage() {
   const incomeData = analytics?.income || []
   const expensesData = analytics?.expenses || []
   const budgetData = analytics?.budget || { budget: 0, actual: 0, variance: 0 }
-  const cashFlowData = analytics?.cashflow || []
+  const budget = Number(budgetData.budget) || 0
+  const actual = Number(budgetData.actual) || 0
+  const maxBudgetActual = Math.max(budget, actual, 1)
+  const budgetWidth = (budget / maxBudgetActual) * 100
+  const actualWidth = (actual / maxBudgetActual) * 100
+  const cashFlowData = (analytics?.cashflow || []).map((item: any) => ({
+    month: item.month ?? item.date ?? item.label,
+    value: Number(
+      item.value ??
+      item.net_cash_flow ??
+      item.cash_flow ??
+      (item.income ?? 0) - (item.expense ?? item.expenses ?? 0)
+    ),
+  }))
   const investmentsData = analytics?.investments || { allocation: {}, sharpe_ratio: null, volatility: null }
   const netWorthGrowthPct: number | null = analytics?.net_worth_growth_pct ?? null
   const reports = reportsRes?.data?.data || []
+
+  console.log('investment allocation:', investmentsData.allocation)
+
 
   const columnHelper = createColumnHelper<any>()
   const columns = [
@@ -89,17 +105,17 @@ export default function ReportsPage() {
         title="Reports & Analytics"
         subtitle=""
       />
-      
+
       {/* Search Header Area */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center -mt-16 mb-8 relative z-10 w-full md:w-auto md:ml-auto md:max-w-md">
-         <div className="relative w-full">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
-            <input 
-              type="text" 
-              placeholder="Search reports..."
-              className="w-full bg-[#f6ece4] border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary/30 outline-none"
-            />
-         </div>
+        <div className="relative w-full">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+          <input
+            type="text"
+            placeholder="Search reports..."
+            className="w-full bg-[#f6ece4] border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+          />
+        </div>
       </div>
 
       {/* Top Stats */}
@@ -162,19 +178,19 @@ export default function ReportsPage() {
 
       {/* Main Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        
+
         {/* Income Performance (spans 2 cols) */}
         <div className="finora-card p-6 md:col-span-2 border border-outline-variant/30">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Income Performance</h3>
             <div className="flex bg-[#f6ece4] rounded-full p-1">
-              <button 
+              <button
                 className={`px-4 py-1 rounded-full text-xs font-semibold transition-colors ${incomePeriod === 'Yearly' ? 'bg-[#795548] text-white' : 'text-[#5d4037]'}`}
                 onClick={() => setIncomePeriod('Yearly')}
               >
                 Yearly
               </button>
-              <button 
+              <button
                 className={`px-4 py-1 rounded-full text-xs font-semibold transition-colors ${incomePeriod === 'Monthly' ? 'bg-[#795548] text-white' : 'text-[#5d4037]'}`}
                 onClick={() => setIncomePeriod('Monthly')}
               >
@@ -185,7 +201,7 @@ export default function ReportsPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={incomeData}>
-                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                   {incomeData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={index === 4 ? '#8d6e63' : '#e7d8c9'} />
@@ -199,7 +215,7 @@ export default function ReportsPage() {
         {/* Expenses Breakdown */}
         <div className="finora-card p-6 flex flex-col justify-between border border-outline-variant/30">
           <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase mb-6">Expenses Breakdown</h3>
-          
+
           <div className="space-y-6 flex-grow">
             {expensesData.map((e: any, index: number) => {
               const colors = ['#5d4037', '#e3ae97', '#8d6e63', '#a1887f', '#d7ccc8']
@@ -207,7 +223,7 @@ export default function ReportsPage() {
               return (
                 <div key={e.name}>
                   <div className="flex justify-between text-sm font-semibold mb-2">
-                    <span className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: color}}></div>{e.name}</span>
+                    <span className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }}></div>{e.name}</span>
                     <span>{e.percentage}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-surface-variant/30 rounded-full overflow-hidden">
@@ -223,71 +239,164 @@ export default function ReportsPage() {
 
       {/* Lower Charts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
+
         {/* Budget vs Actual */}
         <div className="finora-card p-6 flex flex-col justify-between h-72 border border-outline-variant/30">
-          <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Budget vs Actual</h3>
-          <div className="relative h-24 my-6 flex items-end justify-start">
-             <div className="absolute left-0 bottom-4 h-16 bg-[#ebdcd0]" style={{ width: `${Math.min(100, (budgetData.budget / Math.max(budgetData.budget, budgetData.actual)) * 100)}%` }}></div>
-             <div className="absolute left-0 bottom-4 h-8 bg-[#d8c2b5] z-10 border-t border-r border-[#ebdcd0]/50" style={{ width: `${Math.min(100, (budgetData.actual / Math.max(budgetData.budget, budgetData.actual)) * 100)}%` }}></div>
+          <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">
+            Budget vs Actual
+          </h3>
+
+          <div className="space-y-4 my-5">
+            {/* Budget */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-[10px] font-medium text-on-surface-variant">
+                  Budget
+                </span>
+                <span className="text-[10px] font-semibold text-[#5d4037]">
+                  {formatCurrency(budget)}
+                </span>
+              </div>
+
+              <div className="h-4 w-full rounded-sm bg-[#f1e8e2] overflow-hidden">
+                <div
+                  className="h-full bg-[#cdb7a8]"
+                  style={{ width: `${budgetWidth}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Actual */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-[10px] font-medium text-on-surface-variant">
+                  Actual
+                </span>
+                <span className="text-[10px] font-semibold text-[#5d4037]">
+                  {formatCurrency(actual)}
+                </span>
+              </div>
+
+              <div className="h-4 w-full rounded-sm bg-[#f1e8e2] overflow-hidden">
+                <div
+                  className="h-full bg-[#8d6e63]"
+                  style={{ width: `${actualWidth}%` }}
+                />
+              </div>
+            </div>
           </div>
+
+          {/* Variance */}
           <div>
-            <p className="text-xs text-on-surface-variant mb-1">Variance</p>
+            <p className="text-xs text-on-surface-variant mb-1">
+              Variance
+            </p>
+
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-display font-bold text-[#5d4037]">{formatCurrency(budgetData.variance)}</span>
-              {budgetData.variance < 0 && <span className="text-[10px] font-bold px-2 py-0.5 bg-error-container text-error rounded capitalize">OVER BUDGET</span>}
+              <span className="text-2xl font-display font-bold text-[#5d4037]">
+                {formatCurrency(budgetData.variance)}
+              </span>
+
+              {budgetData.variance < 0 && (
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-error-container text-error rounded capitalize">
+                  OVER BUDGET
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         {/* Cash Flow Trends */}
         <div className="finora-card p-6 flex flex-col justify-between h-72 border border-outline-variant/30">
-          <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">Cash Flow Trends</h3>
+          <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase">
+            Cash Flow Trends
+          </h3>
+
           <div className="h-32 -mx-2 my-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cashFlowData}>
+              <AreaChart
+                data={cashFlowData}
+                margin={{ top: 5, right: 5, left: 5, bottom: 0 }}
+              >
                 <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e7d8c9" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#e7d8c9" stopOpacity={0}/>
+                  <linearGradient id="cashFlowGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e7d8c9" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#e7d8c9" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <Area type="monotone" dataKey="value" stroke="#8d6e63" strokeWidth={4} fillOpacity={1} fill="url(#colorValue)" />
+
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#8d6e63"
+                  strokeWidth={3}
+                  fill="url(#cashFlowGradient)"
+                  fillOpacity={1}
+                  dot={false}
+                  activeDot={{
+                    r: 4,
+                    strokeWidth: 2,
+                    fill: "#fff",
+                    stroke: "#8d6e63",
+                  }}
+                />
+
+                <Tooltip
+                  formatter={(value) => [
+                    `₹${Number(value ?? 0).toLocaleString("en-IN")}`,
+                    "Cash Flow",
+                  ]}
+                  contentStyle={{
+                    background: "#fff",
+                    border: "1px solid #e7ded8",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                  }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-xs text-[#5d4037] font-medium leading-relaxed">Stable positive cash flow maintained for 6 months.</p>
+
+          <p className="text-xs text-[#5d4037] font-medium leading-relaxed">
+            Cash flow based on your recorded income and expenses.
+          </p>
         </div>
 
         {/* Investment Performance */}
         <div className="finora-card p-6 flex flex-col h-72 border border-outline-variant/30">
           <h3 className="text-xs font-bold tracking-wider text-[#1f1b18] uppercase mb-8">Investment Performance</h3>
-          
+
           <div className="mb-8">
             <p className="text-xs font-semibold text-on-surface-variant mb-3">Current Allocation</p>
             <div className="h-3 w-full bg-[#ebdcd0] rounded-full overflow-hidden flex">
-              {Object.entries(investmentsData.allocation).map(([key, val]: [string, any], index) => {
-                const colors = ['#795548', '#d7ccc8', '#e3ae97', '#a1887f']
-                return (
-                  <div key={key} className="h-full" style={{ width: `${val}%`, backgroundColor: colors[index % colors.length] }}></div>
-                )
-              })}
+              {Array.isArray(investmentsData.allocation) &&
+                investmentsData.allocation.map((item: any, index: number) => (
+                  <div
+                    key={index}
+                    className="h-full"
+                    title={`${item.label}: ${Number(item.pct).toFixed(1)}%`}
+                    style={{
+                      width: `${item.pct}%`,
+                      backgroundColor: item.color,
+                    }}
+                  />
+                ))}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mt-auto">
-             <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
-                <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Sharpe Ratio</p>
-                <p className="text-xl font-display font-semibold text-[#1f1b18]">
-                  {investmentsData.sharpe_ratio !== null && investmentsData.sharpe_ratio !== undefined ? investmentsData.sharpe_ratio : 'N/A'}
-                </p>
-             </div>
-             <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
-                <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Volatility</p>
-                <p className="text-xl font-display font-semibold text-[#1f1b18]">
-                  {investmentsData.volatility !== null && investmentsData.volatility !== undefined ? `${investmentsData.volatility}%` : 'N/A'}
-                </p>
-             </div>
+            <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
+              <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Sharpe Ratio</p>
+              <p className="text-xl font-display font-semibold text-[#1f1b18]">
+                {investmentsData.sharpe_ratio !== null && investmentsData.sharpe_ratio !== undefined ? investmentsData.sharpe_ratio : 'N/A'}
+              </p>
+            </div>
+            <div className="bg-[#f6ece4] p-4 rounded-xl text-center">
+              <p className="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase mb-1">Volatility</p>
+              <p className="text-xl font-display font-semibold text-[#1f1b18]">
+                {investmentsData.volatility !== null && investmentsData.volatility !== undefined ? `${investmentsData.volatility}%` : 'N/A'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -304,7 +413,7 @@ export default function ReportsPage() {
             Generate Custom Report
           </button>
         </div>
-        
+
         <DataTable columns={columns} data={reports} />
       </div>
 

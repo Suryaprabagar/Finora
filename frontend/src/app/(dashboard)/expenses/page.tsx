@@ -92,6 +92,7 @@ export default function ExpensesPage() {
   const merchantsData = merchantsRes?.data || []
   const upcomingItems = upcomingRes?.data || []
   const currentBudget = budgetRes?.data || null
+
   const expenses = useMemo(() => {
     const list = listRes?.data || []
     if (!searchTerm) return list
@@ -652,60 +653,75 @@ export default function ExpensesPage() {
             Budget Consumption
           </h3>
 
-          <div className="space-y-6">
-            {isBudgetLoading ? (
-              [1, 2, 3].map((i) => (
-                <div key={i} className="space-y-2 animate-pulse">
-                  <div className="flex justify-between">
-                    <div className="h-3 w-32 bg-surface-container rounded" />
-                    <div className="h-3 w-24 bg-surface-container rounded" />
-                  </div>
-                  <div className="w-full h-1.5 bg-surface-container rounded-full" />
+          {isBudgetLoading ? (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-4 w-40 bg-surface-container rounded" />
+              <div className="h-2 w-full bg-surface-container rounded-full" />
+              <div className="h-3 w-32 bg-surface-container rounded" />
+            </div>
+          ) : currentBudget ? (
+            <div className="space-y-5">
+
+              {/* Amounts */}
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-xs text-on-surface-variant mb-1">
+                    Spent
+                  </p>
+                  <p className="text-2xl font-display font-bold text-on-surface">
+                    {formatCurrency(Number(currentBudget.total_spent) || 0)}
+                  </p>
                 </div>
-              ))
-            ) : currentBudget?.items?.length > 0 ? (
-              currentBudget.items.map((item: any, i: number) => {
-                const allocated = Number(item.allocated_amount) || 0
-                const spent = Number(item.spent_amount) || 0
-                const percentage =
-                  allocated > 0
-                    ? Math.min((spent / allocated) * 100, 100)
-                    : 0
 
-                return (
-                  <div key={item.id || i} className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <span className="text-[12px] font-bold text-on-surface">
-                        {item.name || item.category?.name || 'Uncategorized'}
-                      </span>
+                <div className="text-right">
+                  <p className="text-xs text-on-surface-variant mb-1">
+                    Budget
+                  </p>
+                  <p className="text-sm font-bold text-on-surface">
+                    {formatCurrency(Number(currentBudget.total_limit) || 0)}
+                  </p>
+                </div>
+              </div>
 
-                      <div className="text-[11px]">
-                        <span className="text-on-surface-variant font-medium">
-                          {formatCurrency(spent)}
-                        </span>
+              {/* Progress */}
+              <div>
+                <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(
+                        Number(currentBudget.percentage_used) || 0,
+                        100
+                      )}%`,
+                    }}
+                  />
+                </div>
 
-                        <span className="text-on-surface-variant opacity-60">
-                          {' / '}{formatCurrency(allocated)}
-                        </span>
-                      </div>
-                    </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-[11px] text-on-surface-variant">
+                    {(Number(currentBudget.percentage_used) || 0).toFixed(1)}% used
+                  </span>
 
-                    <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })
-            ) : (
-              <EmptyState
-                title="No budget set for this month"
-                icon="account_balance"
-              />
-            )}
-          </div>
+                  <span className="text-[11px] text-on-surface-variant">
+                    {formatCurrency(Number(currentBudget.remaining_total) || 0)} remaining
+                  </span>
+                </div>
+              </div>
+
+              {/* Days remaining */}
+              <div className="pt-2 border-t border-outline-variant/20">
+                <span className="text-[11px] text-on-surface-variant">
+                  {currentBudget.days_remaining} days remaining
+                </span>
+              </div>
+
+            </div>
+          ) : (
+            <EmptyState
+              title="No budget set for this month"
+              icon="account_balance"
+            />
+          )}
         </div>
 
         <div className="finora-card p-6 bg-primary text-on-primary border-none relative overflow-hidden flex flex-col justify-between">
@@ -757,6 +773,6 @@ export default function ExpensesPage() {
         confirmLabel={deleteMutation.isPending ? 'Deleting...' : 'Delete'}
         variant="danger"
       />
-    </div>
+    </div >
   )
 }
